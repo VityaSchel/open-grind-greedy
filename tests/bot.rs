@@ -26,6 +26,8 @@ const INSTALL_ANSWER: &str = "Download it from **the releases page**.";
 const INSTALL_REPLY: &str = "**How do I install it?**\n\nDownload it from **the releases page**.";
 const UPDATE_ANDROID_REPLY: &str = "**How do I update on Android?**\n\nOpen the app store.";
 const UPDATE_WINDOWS_REPLY: &str = "**How do I update on Windows?**\n\nRun the installer again.";
+const HOW_MAY_I_HELP: &str = "How may I help?";
+const RAISED_HAND: &str = "🙋";
 
 struct MockEmbedder;
 
@@ -301,6 +303,45 @@ fn ping_in_reply(event_id: &str, sender: &str, to: &str) -> Value {
 	)
 }
 
+fn reaction(event_id: &str, sender: &str, to: &str, key: &str) -> Value {
+	json!({
+		"type": "m.reaction",
+		"event_id": event_id,
+		"room_id": ROOM,
+		"sender": sender,
+		"origin_server_ts": now_ms(),
+		"content": { "m.relates_to": { "rel_type": "m.annotation", "event_id": to, "key": key } },
+	})
+}
+
+fn stale(mut event: Value) -> Value {
+	event["origin_server_ts"] = json!(now_ms() - 11 * 60 * 1000);
+	event
+}
+
+fn keycap(number: usize) -> String {
+	format!("{number}\u{fe0f}\u{20e3}")
+}
+
+#[track_caller]
+fn assert_reaction(call: &Call, reacted_to: &str, key: &str) {
+	assert_eq!(
+		(call.kind, call.room_id.as_str(), call.event_type.as_str()),
+		("send", ROOM, "m.reaction")
+	);
+	assert_eq!(
+		call.content,
+		json!({ "m.relates_to": { "rel_type": "m.annotation", "event_id": reacted_to, "key": key } })
+	);
+}
+
+#[track_caller]
+fn assert_keycaps(calls: &[Call], list: &str) {
+	for (number, call) in (1..).zip(calls) {
+		assert_reaction(call, list, &keycap(number));
+	}
+}
+
 #[track_caller]
 fn assert_reply(call: &Call, body: &str, reply_to: &str, mention: &str) {
 	assert_eq!(
@@ -357,14 +398,15 @@ async fn auto_answers_each_question_of_a_message_at_its_threshold() {
 		text("$long", BOB, "installing it then? How do I update on Windows?"),
 	])
 	.await;
-	let calls = bot.wait_for_calls(2).await;
+	let calls = bot.wait_for_calls(4).await;
 	assert_reply(
 		&calls[0],
 		"1. How do I update on Android?\n2. How do I install it?",
 		"$both",
 		ALICE,
 	);
-	assert_reply(&calls[1], UPDATE_WINDOWS_REPLY, "$long", BOB);
+	assert_keycaps(&calls[1..3], "$sent1");
+	assert_reply(&calls[3], UPDATE_WINDOWS_REPLY, "$long", BOB);
 }
 
 #[tokio::test]
@@ -376,13 +418,8 @@ async fn reacts_between_the_thresholds_to_questions_of_at_least_four_words() {
 	])
 	.await;
 	let calls = bot.wait_for_calls(2).await;
-	for (call, reacted) in calls.iter().zip(["$q", "$parts"]) {
-		assert_eq!((call.kind, call.event_type.as_str()), ("send", "m.reaction"));
-		assert_eq!(
-			call.content,
-			json!({ "m.relates_to": { "rel_type": "m.annotation", "event_id": reacted, "key": "🙋" } })
-		);
-	}
+	assert_reaction(&calls[0], "$q", RAISED_HAND);
+	assert_reaction(&calls[1], "$parts", RAISED_HAND);
 }
 
 #[tokio::test]
@@ -454,7 +491,7 @@ async fn room_version_12_creators_count_as_moderators() {
 async fn start_with_list() -> TestBot {
 	let bot = TestBot::start().await;
 	bot.transaction(vec![text("$q", ALICE, "how do I update the app?")]).await;
-	let calls = bot.wait_for_calls(1).await;
+	let calls = bot.wait_for_calls(3).await;
 	assert_reply(
 		&calls[0],
 		"1. How do I update on Android?\n2. How do I update on Windows?",
@@ -463,6 +500,7 @@ async fn start_with_list() -> TestBot {
 	);
 	let html = calls[0].content["formatted_body"].as_str().unwrap();
 	assert!(html.contains("<ol>\n<li>How do I update on Android?</li>"), "{html}");
+	assert_keycaps(&calls[1..], "$sent1");
 	bot
 }
 
@@ -472,12 +510,12 @@ async fn picks_from_a_question_list_answer_the_original_message() {
 	let fallback =
 		"> <@faq:test> 1. How do I update on Android?\n> 2. How do I update on Windows?\n\n2";
 	bot.transaction(vec![reply("$pick2", BOB, fallback, "$sent1")]).await;
-	let calls = bot.wait_for_calls(2).await;
-	assert_reply(&calls[1], UPDATE_WINDOWS_REPLY, "$q", ALICE);
+	let calls = bot.wait_for_calls(4).await;
+	assert_reply(&calls[3], UPDATE_WINDOWS_REPLY, "$q", ALICE);
 
 	bot.transaction(vec![reply("$pick1", BOB, " 1 ", "$sent1")]).await;
-	let calls = bot.wait_for_calls(3).await;
-	assert_reply(&calls[2], UPDATE_ANDROID_REPLY, "$q", ALICE);
+	let calls = bot.wait_for_calls(5).await;
+	assert_reply(&calls[4], UPDATE_ANDROID_REPLY, "$q", ALICE);
 
 	let pill = message(
 		"$pill",
@@ -492,20 +530,20 @@ async fn picks_from_a_question_list_answer_the_original_message() {
 		}),
 	);
 	bot.transaction(vec![pill]).await;
-	let calls = bot.wait_for_calls(4).await;
-	assert_reply(&calls[3], UPDATE_WINDOWS_REPLY, "$q", ALICE);
+	let calls = bot.wait_for_calls(6).await;
+	assert_reply(&calls[5], UPDATE_WINDOWS_REPLY, "$q", ALICE);
 }
 
 #[tokio::test]
 async fn invalid_pick_asks_for_the_number() {
 	let bot = start_with_list().await;
 	bot.transaction(vec![reply("$pick", BOB, "two", "$sent1")]).await;
-	let calls = bot.wait_for_calls(2).await;
-	assert_reply(&calls[1], "Pick the question number in my message", "$pick", BOB);
+	let calls = bot.wait_for_calls(4).await;
+	assert_reply(&calls[3], "Pick the question number in my message", "$pick", BOB);
 
 	bot.transaction(vec![reply("$retry", BOB, "2", "$sent1")]).await;
-	let calls = bot.wait_for_calls(3).await;
-	assert_reply(&calls[2], UPDATE_WINDOWS_REPLY, "$q", ALICE);
+	let calls = bot.wait_for_calls(5).await;
+	assert_reply(&calls[4], UPDATE_WINDOWS_REPLY, "$q", ALICE);
 }
 
 #[tokio::test]
@@ -525,20 +563,20 @@ async fn a_number_replied_to_an_answer_is_not_a_pick() {
 async fn moderators_can_still_pick_and_summon() {
 	let bot = start_with_list().await;
 	bot.transaction(vec![reply("$pick", MODERATOR, "2", "$sent1")]).await;
-	let calls = bot.wait_for_calls(2).await;
-	assert_reply(&calls[1], UPDATE_WINDOWS_REPLY, "$q", ALICE);
+	let calls = bot.wait_for_calls(4).await;
+	assert_reply(&calls[3], UPDATE_WINDOWS_REPLY, "$q", ALICE);
 
 	bot.serve_event(text("$old", ALICE, "how do I install it?"));
 	bot.transaction(vec![ping_in_reply("$summon", MODERATOR, "$old")]).await;
-	let calls = bot.wait_for_calls(3).await;
-	assert_reply(&calls[2], INSTALL_REPLY, "$old", ALICE);
+	let calls = bot.wait_for_calls(5).await;
+	assert_reply(&calls[4], INSTALL_REPLY, "$old", ALICE);
 
 	bot.transaction(vec![ping("$ping", MODERATOR)]).await;
-	let calls = bot.wait_for_calls(4).await;
-	assert_reply(&calls[3], "How may I help?", "$ping", MODERATOR);
-	bot.transaction(vec![reply("$question", MODERATOR, "how do I install it?", "$sent4")]).await;
-	let calls = bot.wait_for_calls(5).await;
-	assert_reply(&calls[4], INSTALL_REPLY, "$question", MODERATOR);
+	let calls = bot.wait_for_calls(6).await;
+	assert_reply(&calls[5], "How may I help?", "$ping", MODERATOR);
+	bot.transaction(vec![reply("$question", MODERATOR, "how do I install it?", "$sent6")]).await;
+	let calls = bot.wait_for_calls(7).await;
+	assert_reply(&calls[6], INSTALL_REPLY, "$question", MODERATOR);
 }
 
 #[tokio::test]
@@ -577,12 +615,13 @@ async fn summon_with_two_questions_lists_an_entry_for_each_to_pick_in_turn() {
 	);
 
 	bot.transaction(vec![reply("$pick1", ALICE, "1", "$sent1")]).await;
-	let calls = bot.wait_for_calls(2).await;
-	assert_reply(&calls[1], INSTALL_REPLY, "$summon", ALICE);
+	let calls = bot.wait_for_calls(4).await;
+	assert_keycaps(&calls[1..3], "$sent1");
+	assert_reply(&calls[3], INSTALL_REPLY, "$summon", ALICE);
 
 	bot.transaction(vec![reply("$pick2", ALICE, "2", "$sent1")]).await;
-	let calls = bot.wait_for_calls(3).await;
-	assert_reply(&calls[2], UPDATE_WINDOWS_REPLY, "$summon", ALICE);
+	let calls = bot.wait_for_calls(5).await;
+	assert_reply(&calls[4], UPDATE_WINDOWS_REPLY, "$summon", ALICE);
 }
 
 #[tokio::test]
@@ -620,16 +659,17 @@ async fn summon_holds_short_questions_but_not_keywords_to_the_short_threshold() 
 		summon("$keywords", BOB, "install plugins"),
 	])
 	.await;
-	let calls = bot.wait_for_calls(4).await;
+	let calls = bot.wait_for_calls(6).await;
 	assert_reply(
 		&calls[0],
 		"1. How do I install it?\n2. How do I update on Windows?",
 		"$both",
 		ALICE,
 	);
-	assert_reply(&calls[1], UPDATE_WINDOWS_REPLY, "$long", BOB);
-	assert_reply(&calls[2], "I don't have an FAQ answer for that message.", "$short", ALICE);
-	assert_reply(&calls[3], INSTALL_REPLY, "$keywords", BOB);
+	assert_keycaps(&calls[1..3], "$sent1");
+	assert_reply(&calls[3], UPDATE_WINDOWS_REPLY, "$long", BOB);
+	assert_reply(&calls[4], "I don't have an FAQ answer for that message.", "$short", ALICE);
+	assert_reply(&calls[5], INSTALL_REPLY, "$keywords", BOB);
 }
 
 #[tokio::test]
@@ -656,6 +696,107 @@ async fn summon_falls_back_to_the_whole_message_when_no_question_matches() {
 	let calls = bot.wait_for_calls(2).await;
 	assert_reply(&calls[0], INSTALL_REPLY, "$whole", ALICE);
 	assert_reply(&calls[1], "I don't have an FAQ answer for that message.", "$nothing", BOB);
+}
+
+#[tokio::test]
+async fn raised_hand_click_answers_the_message_once() {
+	let bot = TestBot::start().await;
+	let question = text("$q", ALICE, "can I install plugins too?");
+	bot.serve_event(question.clone());
+	bot.transaction(vec![question]).await;
+	let calls = bot.wait_for_calls(1).await;
+	assert_reaction(&calls[0], "$q", RAISED_HAND);
+
+	bot.transaction(vec![
+		reaction("$own", BOT, "$q", RAISED_HAND),
+		stale(reaction("$stale", BOB, "$q", RAISED_HAND)),
+		reaction("$thumb", BOB, "$q", "👍"),
+		reaction("$unknown", BOB, "$elsewhere", RAISED_HAND),
+		ping("$ping", BOB),
+	])
+	.await;
+	let calls = bot.wait_for_calls(2).await;
+	assert_reply(&calls[1], HOW_MAY_I_HELP, "$ping", BOB);
+
+	bot.transaction(vec![
+		reaction("$click", BOB, "$q", RAISED_HAND),
+		reaction("$again", ALICE, "$q", RAISED_HAND),
+		ping_in_reply("$summon", BOB, "$q"),
+		ping("$flush", BOB),
+	])
+	.await;
+	let calls = bot.wait_for_calls(5).await;
+	assert_reply(&calls[2], INSTALL_REPLY, "$q", ALICE);
+	assert_reply(&calls[3], INSTALL_REPLY, "$q", ALICE);
+	assert_reply(&calls[4], HOW_MAY_I_HELP, "$flush", BOB);
+	assert_eq!(bot.calls().len(), 5);
+}
+
+#[tokio::test]
+async fn ping_while_a_raised_hand_is_pending_answers_and_keeps_the_offer() {
+	let bot = TestBot::start().await;
+	let question = text("$q", ALICE, "can I install plugins too?");
+	bot.serve_event(question.clone());
+	bot.transaction(vec![question]).await;
+	let calls = bot.wait_for_calls(1).await;
+	assert_reaction(&calls[0], "$q", RAISED_HAND);
+
+	bot.transaction(vec![ping_in_reply("$summon", BOB, "$q")]).await;
+	let calls = bot.wait_for_calls(2).await;
+	assert_reply(&calls[1], INSTALL_REPLY, "$q", ALICE);
+
+	bot.transaction(vec![reaction("$click", BOB, "$q", RAISED_HAND), ping("$flush", BOB)]).await;
+	let calls = bot.wait_for_calls(4).await;
+	assert_reply(&calls[2], INSTALL_REPLY, "$q", ALICE);
+	assert_reply(&calls[3], HOW_MAY_I_HELP, "$flush", BOB);
+	assert_eq!(bot.calls().len(), 4);
+}
+
+#[tokio::test]
+async fn first_digit_reaction_on_a_list_answers_that_entry() {
+	let bot = start_with_list().await;
+	bot.transaction(vec![
+		reaction("$own", BOT, "$sent1", &keycap(1)),
+		stale(reaction("$stale", BOB, "$sent1", &keycap(1))),
+		reaction("$three", BOB, "$sent1", &keycap(3)),
+		reaction("$two", BOB, "$sent1", &keycap(2)),
+		reaction("$two-again", ALICE, "$sent1", "2\u{20e3}"),
+		reaction("$one", ALICE, "$sent1", "1\u{20e3}"),
+		reply("$text-pick", BOB, "2", "$sent1"),
+		ping("$ping", BOB),
+	])
+	.await;
+	let calls = bot.wait_for_calls(7).await;
+	assert_reply(&calls[3], UPDATE_WINDOWS_REPLY, "$q", ALICE);
+	assert_reply(&calls[4], UPDATE_ANDROID_REPLY, "$q", ALICE);
+	assert_reply(&calls[5], UPDATE_WINDOWS_REPLY, "$q", ALICE);
+	assert_reply(&calls[6], HOW_MAY_I_HELP, "$ping", BOB);
+	assert_eq!(bot.calls().len(), 7);
+}
+
+#[tokio::test]
+async fn a_list_stops_responding_after_fifty_room_messages() {
+	let bot = start_with_list().await;
+	let chatter = |event_id: String| text(&event_id, BOB, "nice weather today");
+	let list_echo =
+		text("$sent1", BOT, "1. How do I update on Android?\n2. How do I update on Windows?");
+	let mut room_messages = vec![list_echo];
+	room_messages.extend((1..50).map(|n| chatter(format!("$chatter{n}"))));
+	bot.transaction(room_messages).await;
+	bot.transaction(vec![reaction("$one", BOB, "$sent1", &keycap(1))]).await;
+	let calls = bot.wait_for_calls(4).await;
+	assert_reply(&calls[3], UPDATE_ANDROID_REPLY, "$q", ALICE);
+
+	bot.transaction(vec![
+		chatter("$chatter50".into()),
+		reaction("$two", BOB, "$sent1", &keycap(2)),
+		reply("$text-pick", BOB, "2", "$sent1"),
+		ping("$ping", BOB),
+	])
+	.await;
+	let calls = bot.wait_for_calls(5).await;
+	assert_reply(&calls[4], HOW_MAY_I_HELP, "$ping", BOB);
+	assert_eq!(bot.calls().len(), 5);
 }
 
 fn in_thread(mut event: Value, root: &str, reply_to: Option<&str>) -> Value {
@@ -725,8 +866,6 @@ async fn bare_ping_asks_how_to_help_and_the_reply_is_answered() {
 #[tokio::test]
 async fn own_stale_and_edited_messages_are_ignored() {
 	let bot = TestBot::start().await;
-	let mut stale = text("$stale", ALICE, "how do I install it?");
-	stale["origin_server_ts"] = json!(now_ms() - 11 * 60 * 1000);
 	let edit = message(
 		"$edit",
 		ALICE,
@@ -738,7 +877,7 @@ async fn own_stale_and_edited_messages_are_ignored() {
 	);
 	bot.transaction(vec![
 		text("$own", BOT, "how do I install it?"),
-		stale,
+		stale(text("$stale", ALICE, "how do I install it?")),
 		edit,
 		json!({ "type": "m.room.message", "event_id": 42 }),
 		ping("$ping", BOB),

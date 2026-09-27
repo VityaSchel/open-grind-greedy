@@ -59,6 +59,7 @@ pub struct Content {
 pub struct RelatesTo {
 	pub rel_type: Option<String>,
 	pub event_id: Option<String>,
+	pub key: Option<String>,
 	#[serde(default)]
 	pub is_falling_back: bool,
 	#[serde(rename = "m.in_reply_to")]
@@ -139,6 +140,14 @@ impl Content {
 			return None;
 		}
 		self.relates_to.as_ref()?.event_id.as_deref()
+	}
+
+	pub fn annotation(&self) -> Option<(&str, &str)> {
+		if self.rel_type() != Some("m.annotation") {
+			return None;
+		}
+		let relation = self.relates_to.as_ref()?;
+		Some((relation.event_id.as_deref()?, relation.key.as_deref()?))
 	}
 
 	pub fn text(&self) -> &str {
@@ -675,6 +684,21 @@ mod tests {
 				},
 			})
 		);
+	}
+
+	#[test]
+	fn annotation_is_the_reacted_event_and_key() {
+		let sent = content(reaction("$question:example.org", "🙋"));
+		assert_eq!(sent.annotation(), Some(("$question:example.org", "🙋")));
+		let keyless = content(json!({
+			"m.relates_to": { "rel_type": "m.annotation", "event_id": "$question:example.org" },
+		}));
+		assert_eq!(keyless.annotation(), None);
+		let reply = content(json!({
+			"m.relates_to": { "m.in_reply_to": { "event_id": "$question:example.org" } },
+		}));
+		assert_eq!(reply.annotation(), None);
+		assert_eq!(content(json!({})).annotation(), None);
 	}
 
 	#[test]

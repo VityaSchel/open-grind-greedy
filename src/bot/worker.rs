@@ -1,6 +1,6 @@
 use super::answering::{
-	Decision, Message, Pending, PendingMessages, answer_markdown, decide, is_question, is_stale,
-	merge, picked, question_list, question_threshold, questions,
+	Decision, Message, Pending, PendingMessages, RAISED_HAND, Reaction, answer_markdown, decide,
+	is_question, is_stale, keycap, merge, picked, question_list, question_threshold, questions,
 };
 use super::calibration::Calibration;
 use super::config::Config;
@@ -19,7 +19,6 @@ const HOW_MAY_I_HELP: &str = "How may I help?";
 const PICK_REPLY: &str = "Pick the question number in my message";
 const NO_ANSWER_REPLY: &str = "I don't have an FAQ answer for that message.";
 const UNREADABLE_REPLY: &str = "I couldn't read that message.";
-const RAISED_HAND: &str = "🙋";
 const MODERATOR_POWER_LEVEL: i64 = 50;
 
 pub struct Worker {
@@ -58,7 +57,11 @@ impl Worker {
 
 	async fn handle(&mut self, event: Event) -> Result<()> {
 		match event.event_type.as_str() {
-			"m.room.message" => self.on_message(event).await?,
+			"m.room.message" => {
+				self.pending.count_room_message(&event.room_id, &event.event_id);
+				self.on_message(event).await?
+			}
+			"m.reaction" => self.on_reaction(event).await?,
 			"m.room.member"
 				if event.state_key.as_ref() == Some(&self.config.app_service_user)
 					&& event.content.membership.as_deref() == Some("invite") =>
@@ -95,12 +98,12 @@ impl Worker {
 		let html = content.html();
 		let target = content.reply_target();
 		match target.and_then(|target| self.pending.get(target, Instant::now())).cloned() {
-			Some(Pending::Choices { original, entry_ids }) => {
+			Some(Pending::Choices { original, entry_ids, .. }) => {
 				let choice = summon_question(body, html, bot);
 				return self.pick(&message, &choice, &original, &entry_ids).await;
 			}
 			Some(Pending::Prompt) => return self.summon_or_prompt(&message, body, html).await,
-			None => {}
+			Some(Pending::Offer { .. }) | None => {}
 		}
 		if mentions_user(content.mentioned_user_ids(), html, body, bot) {
 			return match target {
@@ -113,6 +116,27 @@ impl Worker {
 			return Ok(());
 		}
 		self.auto(&message, body).await
+	}
+
+	async fn on_reaction(&mut self, event: Event) -> Result<()> {
+		let Some((reacted_to, key)) = event.content.annotation() else {
+			return Ok(());
+		};
+		if event.sender == self.config.app_service_user
+			|| is_stale(event.origin_server_ts, unix_millis())
+		{
+			debug!(room = %event.room_id, event = %event.event_id, "skipping reaction");
+			return Ok(());
+		}
+		match self.pending.react(reacted_to, key, Instant::now()) {
+			Some(Reaction::Pick { original, entry_id }) => {
+				self.answer("pick", &original, &entry_id, None).await
+			}
+			Some(Reaction::Summon { message, question }) => {
+				self.summon("reaction", &message, &message, question).await
+			}
+			None => Ok(()),
+		}
 	}
 
 	async fn pick(
@@ -138,11 +162,11 @@ impl Worker {
 	) -> Result<()> {
 		let question = summon_question(body, html, &self.config.app_service_user);
 		if question.chars().any(char::is_alphanumeric) {
-			return self.summon(message, message, question).await;
+			return self.summon("summon", message, message, question).await;
 		}
 		let prompt = self.reply(message, HOW_MAY_I_HELP).await?;
 		info!(mode = "summon", room = %message.room_id, asker = %message.sender, "asked how to help");
-		self.pending.insert(prompt, Pending::Prompt, Instant::now());
+		self.pending.insert(&message.room_id, prompt, Pending::Prompt, Instant::now());
 		Ok(())
 	}
 
@@ -176,11 +200,12 @@ impl Worker {
 				.map(str::to_owned)
 				.or_else(|| summoner.thread_root.clone()),
 		};
-		self.summon(summoner, &answer_to, question.to_owned()).await
+		self.summon("summon", summoner, &answer_to, question.to_owned()).await
 	}
 
 	async fn summon(
 		&mut self,
+		mode: &str,
 		summoner: &Message,
 		answer_to: &Message,
 		text: String,
@@ -195,11 +220,11 @@ impl Worker {
 		}
 		let score = top_score(&ranked);
 		match decision {
-			Decision::Answer(id) => self.answer("summon", answer_to, &id, Some(score)).await,
-			Decision::Choose(ids) => self.offer("summon", answer_to, ids, score).await,
+			Decision::Answer(id) => self.answer(mode, answer_to, &id, Some(score)).await,
+			Decision::Choose(ids) => self.offer(mode, answer_to, ids, score).await,
 			Decision::NoMatch => {
 				self.reply(summoner, NO_ANSWER_REPLY).await?;
-				info!(mode = "summon", room = %summoner.room_id, score, "no confident match");
+				info!(mode, room = %summoner.room_id, score, "no confident match");
 				Ok(())
 			}
 		}
@@ -229,6 +254,13 @@ impl Worker {
 				let reaction = matrix::reaction(&message.event_id, RAISED_HAND);
 				self.matrix.send(&message.room_id, "m.reaction", &reaction).await?;
 				info!(mode = "auto", room = %message.room_id, entry, score, "reacted");
+				let offer = Pending::Offer { message: message.clone(), question: body.to_owned() };
+				self.pending.insert(
+					&message.room_id,
+					message.event_id.clone(),
+					offer,
+					Instant::now(),
+				);
 				Ok(())
 			}
 		}
@@ -267,8 +299,14 @@ impl Worker {
 			.collect::<Result<Vec<_>>>()?;
 		let list = self.reply(to, &question_list(&questions)).await?;
 		info!(mode, room = %to.room_id, entries = ?entry_ids, score, answered = %to.event_id, "listed questions");
-		let pending = Pending::Choices { original: to.clone(), entry_ids };
-		self.pending.insert(list, pending, Instant::now());
+		let count = entry_ids.len();
+		let choices =
+			Pending::Choices { original: to.clone(), entry_ids, reaction_picks: HashSet::new() };
+		self.pending.insert(&to.room_id, list.clone(), choices, Instant::now());
+		for number in 1..=count {
+			let reaction = matrix::reaction(&list, &keycap(number));
+			self.matrix.send(&to.room_id, "m.reaction", &reaction).await?;
+		}
 		Ok(())
 	}
 

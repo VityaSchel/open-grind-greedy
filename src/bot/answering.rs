@@ -1,10 +1,14 @@
 use crate::faq::FaqEntry;
 use crate::matcher::Match;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
+pub const RAISED_HAND: &str = "🙋";
 const STALE_AFTER_MS: u64 = 10 * 60 * 1000;
-const PENDING_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+const PENDING_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const PENDING_TTL_ROOM_MESSAGES: u64 = 50;
+const VARIATION_SELECTOR: char = '\u{fe0f}';
+const COMBINING_KEYCAP: char = '\u{20e3}';
 const MAX_CHOICES: usize = 5;
 const MAX_QUESTIONS: usize = MAX_CHOICES;
 const MIN_QUESTION_WORDS: usize = 2;
@@ -158,28 +162,88 @@ pub struct Message {
 	pub thread_root: Option<String>,
 }
 
+pub fn keycap(number: usize) -> String {
+	format!("{number}{VARIATION_SELECTOR}{COMBINING_KEYCAP}")
+}
+
+fn is_same_key(reacted: &str, expected: &str) -> bool {
+	reacted.replace(VARIATION_SELECTOR, "") == expected.replace(VARIATION_SELECTOR, "")
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Pending {
-	Choices { original: Message, entry_ids: Vec<String> },
+	Choices { original: Message, entry_ids: Vec<String>, reaction_picks: HashSet<usize> },
 	Prompt,
+	Offer { message: Message, question: String },
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Reaction {
+	Pick { original: Message, entry_id: String },
+	Summon { message: Message, question: String },
+}
+
+struct Tracked {
+	pending: Pending,
+	room_id: String,
+	sent: Instant,
+	room_messages_since: u64,
+}
+
+impl Tracked {
+	fn is_live(&self, now: Instant) -> bool {
+		now.saturating_duration_since(self.sent) < PENDING_TTL
+			&& self.room_messages_since < PENDING_TTL_ROOM_MESSAGES
+	}
 }
 
 #[derive(Default)]
-pub struct PendingMessages(HashMap<String, (Instant, Pending)>);
+pub struct PendingMessages(HashMap<String, Tracked>);
 
 impl PendingMessages {
-	pub fn insert(&mut self, event_id: String, pending: Pending, now: Instant) {
-		self.0.retain(|_, (sent, _)| is_fresh(*sent, now));
-		self.0.insert(event_id, (now, pending));
+	pub fn insert(&mut self, room_id: &str, event_id: String, pending: Pending, now: Instant) {
+		self.0.retain(|_, tracked| tracked.is_live(now));
+		let tracked =
+			Tracked { pending, room_id: room_id.to_owned(), sent: now, room_messages_since: 0 };
+		self.0.insert(event_id, tracked);
+	}
+
+	pub fn count_room_message(&mut self, room_id: &str, event_id: &str) {
+		let others_in_room = self
+			.0
+			.iter_mut()
+			.filter(|(tracked_id, tracked)| *tracked_id != event_id && tracked.room_id == room_id);
+		for (_, tracked) in others_in_room {
+			tracked.room_messages_since += 1;
+		}
 	}
 
 	pub fn get(&self, event_id: &str, now: Instant) -> Option<&Pending> {
-		self.0.get(event_id).filter(|(sent, _)| is_fresh(*sent, now)).map(|(_, pending)| pending)
+		self.0.get(event_id).filter(|tracked| tracked.is_live(now)).map(|tracked| &tracked.pending)
 	}
-}
 
-fn is_fresh(sent: Instant, now: Instant) -> bool {
-	now.saturating_duration_since(sent) < PENDING_TTL
+	pub fn react(&mut self, event_id: &str, key: &str, now: Instant) -> Option<Reaction> {
+		let tracked = self.0.get_mut(event_id).filter(|tracked| tracked.is_live(now))?;
+		match &mut tracked.pending {
+			Pending::Choices { original, entry_ids, reaction_picks } => {
+				let (index, entry_id) = entry_ids
+					.iter()
+					.enumerate()
+					.find(|(index, _)| is_same_key(key, &keycap(index + 1)))?;
+				reaction_picks.insert(index).then(|| Reaction::Pick {
+					original: original.clone(),
+					entry_id: entry_id.clone(),
+				})
+			}
+			Pending::Offer { message, question } if is_same_key(key, RAISED_HAND) => {
+				let reaction =
+					Reaction::Summon { message: message.clone(), question: question.clone() };
+				self.0.remove(event_id);
+				Some(reaction)
+			}
+			Pending::Offer { .. } | Pending::Prompt => None,
+		}
+	}
 }
 
 #[cfg(test)]
@@ -473,24 +537,57 @@ mod tests {
 		}
 	}
 
+	const ROOM: &str = "!support:example.org";
+	const OFFERED_QUESTION: &str = "can I install plugins too?";
+
+	fn question_message() -> Message {
+		Message {
+			room_id: ROOM.into(),
+			event_id: "$question".into(),
+			sender: "@alice:example.org".into(),
+			thread_root: None,
+		}
+	}
+
 	fn choices() -> Pending {
 		Pending::Choices {
-			original: Message {
-				room_id: "!support:example.org".into(),
-				event_id: "$question".into(),
-				sender: "@alice:example.org".into(),
-				thread_root: None,
-			},
+			original: question_message(),
 			entry_ids: vec!["install".into(), "update".into()],
+			reaction_picks: HashSet::new(),
 		}
+	}
+
+	fn offer() -> Pending {
+		Pending::Offer { message: question_message(), question: OFFERED_QUESTION.into() }
+	}
+
+	fn pick(entry_id: &str) -> Option<Reaction> {
+		Some(Reaction::Pick { original: question_message(), entry_id: entry_id.into() })
+	}
+
+	#[test]
+	fn keycaps_are_the_digit_with_the_emoji_keycap() {
+		assert_eq!(keycap(1), "1\u{fe0f}\u{20e3}");
+		assert_eq!(keycap(5), "5\u{fe0f}\u{20e3}");
+	}
+
+	#[test]
+	fn reaction_keys_match_with_or_without_the_variation_selector() {
+		assert!(is_same_key("1\u{fe0f}\u{20e3}", &keycap(1)));
+		assert!(is_same_key("1\u{20e3}", &keycap(1)));
+		assert!(is_same_key("🙋\u{fe0f}", RAISED_HAND));
+		assert!(is_same_key(RAISED_HAND, RAISED_HAND));
+		assert!(!is_same_key("2\u{20e3}", &keycap(1)));
+		assert!(!is_same_key("1", &keycap(1)));
+		assert!(!is_same_key("🙋\u{200d}\u{2642}\u{fe0f}", RAISED_HAND));
 	}
 
 	#[test]
 	fn lists_and_prompts_are_found_by_their_event_id_repeatedly() {
 		let mut pending = PendingMessages::default();
 		let now = Instant::now();
-		pending.insert("$list".into(), choices(), now);
-		pending.insert("$prompt".into(), Pending::Prompt, now);
+		pending.insert(ROOM, "$list".into(), choices(), now);
+		pending.insert(ROOM, "$prompt".into(), Pending::Prompt, now);
 		assert_eq!(pending.get("$list", now), Some(&choices()));
 		assert_eq!(pending.get("$list", now), Some(&choices()));
 		assert_eq!(pending.get("$prompt", now), Some(&Pending::Prompt));
@@ -498,24 +595,83 @@ mod tests {
 	}
 
 	#[test]
-	fn pending_messages_are_pruned_after_a_week_on_insert() {
+	fn each_digit_reaction_on_a_list_picks_its_entry_once() {
 		let mut pending = PendingMessages::default();
-		let start = Instant::now();
-		pending.insert("$old".into(), choices(), start);
-		pending.insert("$recent".into(), Pending::Prompt, start + Duration::from_secs(60));
-		pending.insert("$new".into(), Pending::Prompt, start + PENDING_TTL);
-		assert!(!pending.0.contains_key("$old"));
-		assert!(pending.0.contains_key("$recent"));
-		assert!(pending.0.contains_key("$new"));
+		let now = Instant::now();
+		pending.insert(ROOM, "$list".into(), choices(), now);
+		assert_eq!(pending.react("$list", "2\u{20e3}", now), pick("update"));
+		assert_eq!(pending.react("$list", &keycap(2), now), None);
+		assert_eq!(pending.react("$list", &keycap(1), now), pick("install"));
+		for ignored in [keycap(1), keycap(3), "0\u{fe0f}\u{20e3}".into(), RAISED_HAND.into()] {
+			assert_eq!(pending.react("$list", &ignored, now), None, "{ignored}");
+		}
+		assert_eq!(pending.react("$other", &keycap(1), now), None);
+		assert!(pending.get("$list", now).is_some());
 	}
 
 	#[test]
-	fn pending_messages_expire_after_a_week_without_inserts() {
+	fn raised_hand_on_an_offer_summons_it_once() {
+		let mut pending = PendingMessages::default();
+		let now = Instant::now();
+		pending.insert(ROOM, "$question".into(), offer(), now);
+		pending.insert(ROOM, "$prompt".into(), Pending::Prompt, now);
+		assert_eq!(pending.react("$question", "👍", now), None);
+		assert_eq!(pending.react("$question", &keycap(1), now), None);
+		assert_eq!(pending.react("$prompt", RAISED_HAND, now), None);
+		let summon =
+			Reaction::Summon { message: question_message(), question: OFFERED_QUESTION.into() };
+		assert_eq!(pending.react("$question", RAISED_HAND, now), Some(summon));
+		assert_eq!(pending.react("$question", RAISED_HAND, now), None);
+		assert_eq!(pending.get("$question", now), None);
+	}
+
+	#[test]
+	fn pending_messages_expire_after_fifty_further_messages_in_their_room() {
+		let mut pending = PendingMessages::default();
+		let now = Instant::now();
+		pending.insert(ROOM, "$list".into(), choices(), now);
+		pending.count_room_message(ROOM, "$list");
+		pending.insert(ROOM, "$question".into(), offer(), now);
+		for _ in 1..PENDING_TTL_ROOM_MESSAGES {
+			pending.count_room_message(ROOM, "$chatter");
+			pending.count_room_message("!other:example.org", "$elsewhere");
+		}
+		assert_eq!(pending.get("$list", now), Some(&choices()));
+		assert_eq!(pending.get("$question", now), Some(&offer()));
+		pending.count_room_message(ROOM, "$chatter");
+		assert_eq!(pending.get("$list", now), None);
+		assert_eq!(pending.react("$list", &keycap(1), now), None);
+		assert_eq!(pending.react("$question", RAISED_HAND, now), None);
+	}
+
+	#[test]
+	fn pending_messages_expire_after_a_day() {
 		let mut pending = PendingMessages::default();
 		let start = Instant::now();
-		pending.insert("$list".into(), choices(), start);
+		pending.insert(ROOM, "$list".into(), choices(), start);
+		pending.insert(ROOM, "$question".into(), offer(), start);
 		let almost = start + PENDING_TTL - Duration::from_secs(1);
 		assert_eq!(pending.get("$list", almost), Some(&choices()));
 		assert_eq!(pending.get("$list", start + PENDING_TTL), None);
+		assert_eq!(pending.react("$list", &keycap(1), start + PENDING_TTL), None);
+		assert_eq!(pending.react("$question", RAISED_HAND, start + PENDING_TTL), None);
+	}
+
+	#[test]
+	fn expired_pending_messages_are_pruned_on_insert() {
+		let mut pending = PendingMessages::default();
+		let start = Instant::now();
+		let later = start + Duration::from_secs(60);
+		pending.insert(ROOM, "$old".into(), choices(), start);
+		pending.insert(ROOM, "$busy".into(), Pending::Prompt, later);
+		pending.insert("!quiet:example.org", "$quiet".into(), Pending::Prompt, later);
+		for _ in 0..PENDING_TTL_ROOM_MESSAGES {
+			pending.count_room_message(ROOM, "$chatter");
+		}
+		pending.insert(ROOM, "$new".into(), Pending::Prompt, start + PENDING_TTL);
+		assert!(!pending.0.contains_key("$old"));
+		assert!(!pending.0.contains_key("$busy"));
+		assert!(pending.0.contains_key("$quiet"));
+		assert!(pending.0.contains_key("$new"));
 	}
 }
