@@ -102,7 +102,11 @@
 			"iOS?",
 			"Also are the beta releases will be available in the ios? So we can also test it as well as an ios user?",
 			"when will this app be available on ios, if it is going to be at all?",
-			"Earlier today I saw that there was an iOS option and im no longer seeing it. Am I tripping?"
+			"Earlier today I saw that there was an iOS option and im no longer seeing it. Am I tripping?",
+			"is ios version available",
+			"is version for ios available",
+			"is there an iphone version",
+			"ios version"
 		],
 		"answer": "No. As of September 2026 Open Grind does not support iOS. The iOS buidlds will get an .ipa build and probably get published to alt stores. If you have a computer, Open Grind already runs on macOS, Windows and Linux."
 	},
@@ -117,7 +121,12 @@
 			"which download link should i use, i have windows",
 			"is there an open grind exe",
 			"open grind windows download",
-			"does open grind work on windows 11"
+			"does open grind work on windows 11",
+			"is version for windows available",
+			"is windows version available",
+			"is there a version for windows",
+			"how to download for windows",
+			"windows version"
 		],
 		"answer": "Open Grind is available on Windows as an installer (.exe) for x86_64 and arm64. Downloads: [opengrind.org/download](https://opengrind.org/download). There is no portable version because Microsoft's WebView2 support has to be checked at install time. The installer isn't signed with a paid code-signing certificate, so an antivirus may warn about it. Releases are safe per VirusTotal check, reproducible and you can build them yourself."
 	},
@@ -147,7 +156,11 @@
 			"is there an apt repo for open grind",
 			"can i install open grind with apt",
 			"is open grind on the aur",
-			"is there a flatpak"
+			"is there a flatpak",
+			"is version for linux available",
+			"is linux version available",
+			"how to download for linux",
+			"linux version"
 		],
 		"answer": "Open Grind is available on as a .deb for Debian 13+, Ubuntu 22+ and derivatives and as an AppImage for other distributions, for x86_64 and arm64. Flatpak is deferred until the stable v0.1.0. Downloads: [opengrind.org/download](https://opengrind.org/download)"
 	},
@@ -926,7 +939,11 @@
 			"can i use open grind on my macbook",
 			"is there a dmg or homebrew package",
 			"does open grind run on apple silicon macs",
-			"can I run it on Mac without any emulator?"
+			"can I run it on Mac without any emulator?",
+			"is version for mac available",
+			"is mac version available",
+			"how to download for mac",
+			"mac version"
 		],
 		"answer": "Yes. Open Grind is available on macOS as a zip with a universal .app you launch from /Applications. Downloads: [opengrind.org/download](https://opengrind.org/download). There is no dmg or Homebrew package. The build isn't signed yet, so macOS may say the app is damaged: run `xattr -d com.apple.quarantine /path/to/open-grind.app`, then open it, or locate the \"Open anyway\" button in System Settings."
 	},
@@ -5384,7 +5401,9 @@
 			"You support active discrimation noted.",
 			"Well yeah I get that u think that kids shld be in a separate zone of rights and only be entitled to basicish rights while adults get all fancy rights",
 			"isn't excluding children from a group the same as excluding women",
-			"isn't an age limit just ageism"
+			"isn't an age limit just ageism",
+			"isn't banning minors discrimination",
+			"banning minors is discrimination"
 		],
 		"answer": "Read [why this chat is 18+](https://matrix.to/#/!b2GcLXF4xhTrmSPXcdGk-9UN40uEPnAz7NuH031cxLk/$igR_f4gweZTkVEm_d1I0BGKx78kMO8M9FKd0xT3iT_0)"
 	},
@@ -5456,7 +5475,11 @@
 			"what are the three reasons for the 18+ rule",
 			"grindr only cares about money, why would a scandal involving a minor matter",
 			"how would having minors here hurt the project",
-			"what's the big deal about a teenager being in this chat"
+			"what's the big deal about a teenager being in this chat",
+			"why minors are not allowed here",
+			"why are minors not allowed here",
+			"why can't minors join the chat",
+			"why no minors"
 		],
 		"answer": "Read [why this chat is 18+](https://matrix.to/#/!b2GcLXF4xhTrmSPXcdGk-9UN40uEPnAz7NuH031cxLk/$igR_f4gweZTkVEm_d1I0BGKx78kMO8M9FKd0xT3iT_0)"
 	},
@@ -5649,7 +5672,10 @@
 			"why does greedy look broken",
 			"whats greedy",
 			"what's the open grind mascot called",
-			"is greedy the open grind mascot"
+			"is greedy the open grind mascot",
+			"what is open grind mascot",
+			"who is the open grind mascot",
+			"open grind mascot"
 		],
 		"answer": "Mascot of Open Grind. he's greedy, he's horny, he's sexy, and if the sexuality and sexual orientation is a spectre, then he's the gayest thing in existence, maybe even more than that. his greed is so immeasurable it breaks all laws and reality itself."
 	},
