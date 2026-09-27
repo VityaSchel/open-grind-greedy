@@ -34,9 +34,11 @@ impl Embedder for MockEmbedder {
 
 fn vector(text: &str) -> Vec<f32> {
 	match text {
-		"How do I install it?" | "how do I install it?" | "how do I install it" | "install it?" => {
-			vec![1.0, 0.0, 0.0, 0.0]
-		}
+		"How do I install it?"
+		| "how do I install it?"
+		| "how do I install it"
+		| "install it?"
+		| "is the app free? how do I get it?" => vec![1.0, 0.0, 0.0, 0.0],
 		"How do I update on Android?" => vec![0.0, 1.0, 0.0, 0.0],
 		"How do I update on Windows?" => vec![0.0, 0.0, 1.0, 0.0],
 		"how do I update the app?" => vec![0.0, 1.0, 1.0, 0.0],
@@ -503,6 +505,83 @@ async fn ping_in_a_reply_answers_the_replied_to_message() {
 	bot.transaction(vec![ping_in_reply("$unknown", BOB, "$chatter")]).await;
 	let calls = bot.wait_for_calls(3).await;
 	assert_notice(&calls[2], "I don't have an FAQ answer for that message.", "$unknown", BOB);
+}
+
+fn summon(event_id: &str, sender: &str, question: &str) -> Value {
+	text(event_id, sender, &format!("{BOT} {question}"))
+}
+
+#[tokio::test]
+async fn summon_with_two_questions_lists_an_entry_for_each_to_pick_in_turn() {
+	let bot = TestBot::start().await;
+	let questions = "can I install plugins too? How do I update on Windows?";
+	bot.transaction(vec![summon("$summon", ALICE, questions)]).await;
+	let calls = bot.wait_for_calls(1).await;
+	assert_notice(
+		&calls[0],
+		"1. How do I install it?\n2. How do I update on Windows?",
+		"$summon",
+		ALICE,
+	);
+
+	bot.transaction(vec![reply("$pick1", ALICE, "1", "$sent1")]).await;
+	let calls = bot.wait_for_calls(2).await;
+	assert_notice(&calls[1], INSTALL_ANSWER, "$summon", ALICE);
+
+	bot.transaction(vec![reply("$pick2", ALICE, "2", "$sent1")]).await;
+	let calls = bot.wait_for_calls(3).await;
+	assert_notice(&calls[2], "Run the installer again.", "$summon", ALICE);
+}
+
+#[tokio::test]
+async fn ping_in_a_reply_to_two_questions_lists_entries_in_question_order() {
+	let bot = TestBot::start().await;
+	bot.serve_event(text("$old", ALICE, "How do I update on Android? How do I install it? thanks"));
+	bot.transaction(vec![ping_in_reply("$summon", BOB, "$old")]).await;
+	let calls = bot.wait_for_calls(1).await;
+	assert_notice(
+		&calls[0],
+		"1. How do I update on Android?\n2. How do I install it?",
+		"$old",
+		ALICE,
+	);
+}
+
+#[tokio::test]
+async fn summon_with_two_questions_for_one_entry_answers_once() {
+	let bot = TestBot::start().await;
+	bot.transaction(vec![summon("$summon", ALICE, "How do I install it? how do I install it")]).await;
+	bot.transaction(vec![ping("$ping", BOB)]).await;
+	let calls = bot.wait_for_calls(2).await;
+	assert_notice(&calls[0], INSTALL_ANSWER, "$summon", ALICE);
+	assert_notice(&calls[1], "How may I help?", "$ping", BOB);
+	assert_eq!(bot.calls().len(), 2);
+}
+
+#[tokio::test]
+async fn summon_with_one_question_lists_close_entries_as_before() {
+	let bot = TestBot::start().await;
+	bot.transaction(vec![summon("$summon", ALICE, "how do I update the app?")]).await;
+	let calls = bot.wait_for_calls(1).await;
+	assert_notice(
+		&calls[0],
+		"1. How do I update on Android?\n2. How do I update on Windows?",
+		"$summon",
+		ALICE,
+	);
+}
+
+#[tokio::test]
+async fn summon_falls_back_to_the_whole_message_when_no_question_matches() {
+	let bot = TestBot::start().await;
+	bot.transaction(vec![
+		summon("$whole", ALICE, "is the app free? how do I get it?"),
+		summon("$nothing", BOB, "is the weather nice today? will it rain later?"),
+	])
+	.await;
+	let calls = bot.wait_for_calls(2).await;
+	assert_notice(&calls[0], INSTALL_ANSWER, "$whole", ALICE);
+	assert_notice(&calls[1], "I don't have an FAQ answer for that message.", "$nothing", BOB);
 }
 
 fn in_thread(mut event: Value, root: &str, reply_to: Option<&str>) -> Value {

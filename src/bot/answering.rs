@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 const STALE_AFTER_MS: u64 = 10 * 60 * 1000;
 const PENDING_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const MAX_CHOICES: usize = 5;
+const MAX_QUESTIONS: usize = MAX_CHOICES;
 const MIN_WORDS: usize = 4;
 
 #[derive(Debug, PartialEq)]
@@ -23,6 +24,22 @@ impl Decision {
 			Decision::Choose(ids) => ids.first().map(String::as_str),
 		}
 	}
+
+	fn from_entry_ids(mut entry_ids: Vec<String>) -> Self {
+		match entry_ids.len() {
+			0 => Decision::NoMatch,
+			1 => Decision::Answer(entry_ids.remove(0)),
+			_ => Decision::Choose(entry_ids),
+		}
+	}
+
+	fn into_entry_ids(self) -> Vec<String> {
+		match self {
+			Decision::NoMatch => Vec::new(),
+			Decision::Answer(id) => vec![id],
+			Decision::Choose(ids) => ids,
+		}
+	}
 }
 
 pub fn decide<'a>(
@@ -34,18 +51,33 @@ pub fn decide<'a>(
 	let Some(top) = ranking.first().filter(|top| top.score >= threshold) else {
 		return Decision::NoMatch;
 	};
-	let mut candidates: Vec<String> = ranking
+	let candidates = ranking
 		.iter()
 		.take_while(|m| m.score >= threshold && top.score - m.score <= ambiguity_margin)
 		.filter(|m| lookup(&m.id).is_some_and(|entry| !is_placeholder(&entry.answer)))
 		.map(|m| m.id.clone())
 		.take(MAX_CHOICES)
 		.collect();
-	match candidates.len() {
-		0 => Decision::NoMatch,
-		1 => Decision::Answer(candidates.remove(0)),
-		_ => Decision::Choose(candidates),
+	Decision::from_entry_ids(candidates)
+}
+
+pub fn merge(decisions: Vec<Decision>) -> Decision {
+	let mut entry_ids = Vec::new();
+	for id in decisions.into_iter().flat_map(Decision::into_entry_ids) {
+		if !entry_ids.contains(&id) {
+			entry_ids.push(id);
+		}
 	}
+	entry_ids.truncate(MAX_CHOICES);
+	Decision::from_entry_ids(entry_ids)
+}
+
+pub fn split_questions(text: &str) -> Vec<&str> {
+	text.split_inclusive('?')
+		.map(str::trim)
+		.filter(|part| part.split_whitespace().count() >= MIN_WORDS)
+		.take(MAX_QUESTIONS)
+		.collect()
 }
 
 pub fn is_placeholder(answer: &str) -> bool {
@@ -137,6 +169,10 @@ mod tests {
 		Decision::Choose(ids.iter().map(|id| id.to_string()).collect())
 	}
 
+	fn answer(id: &str) -> Decision {
+		Decision::Answer(id.into())
+	}
+
 	fn entries() -> Vec<FaqEntry> {
 		["install", "update", "ios", "linux"].iter().map(|id| entry(id, "An answer.")).collect()
 	}
@@ -216,6 +252,70 @@ mod tests {
 	fn empty_ranking_and_unknown_entries_are_no_match() {
 		assert_eq!(decide_with(&[], &[], 0.0, 0.02), Decision::NoMatch);
 		assert_eq!(decide_with(&[], &ranking(&[("gone", 0.99)]), 0.5, 0.02), Decision::NoMatch);
+	}
+
+	#[test]
+	fn merging_keeps_question_order_without_duplicates() {
+		let decisions = vec![
+			choose(&["update", "install"]),
+			Decision::NoMatch,
+			answer("install"),
+			answer("ios"),
+		];
+		assert_eq!(merge(decisions), choose(&["update", "install", "ios"]));
+	}
+
+	#[test]
+	fn merging_to_one_entry_answers_it() {
+		assert_eq!(merge(vec![answer("install"), answer("install")]), answer("install"));
+		assert_eq!(merge(vec![Decision::NoMatch, answer("install")]), answer("install"));
+	}
+
+	#[test]
+	fn merging_nothing_is_no_match() {
+		assert_eq!(merge(Vec::new()), Decision::NoMatch);
+		assert_eq!(merge(vec![Decision::NoMatch, Decision::NoMatch]), Decision::NoMatch);
+	}
+
+	#[test]
+	fn merging_lists_at_most_five_entries() {
+		let decisions = vec![choose(&["a", "b", "c"]), answer("a"), choose(&["d", "e", "f"])];
+		assert_eq!(merge(decisions), choose(&["a", "b", "c", "d", "e"]));
+	}
+
+	#[test]
+	fn questions_end_at_each_question_mark() {
+		assert_eq!(
+			split_questions("How do I install it? Is there an iOS version?"),
+			["How do I install it?", "Is there an iOS version?"]
+		);
+		assert_eq!(
+			split_questions("How do I install it? Asking for a friend"),
+			["How do I install it?", "Asking for a friend"]
+		);
+		assert_eq!(split_questions("How do I install it?"), ["How do I install it?"]);
+		assert_eq!(split_questions("How do I install it"), ["How do I install it"]);
+	}
+
+	#[test]
+	fn question_parts_are_trimmed_and_need_four_words() {
+		assert_eq!(split_questions("?? How do I install it?"), ["How do I install it?"]);
+		assert_eq!(
+			split_questions("  How do I install?\n Is there an iOS version ?  :) "),
+			["How do I install?", "Is there an iOS version ?"]
+		);
+		assert_eq!(
+			split_questions("Anyone here? Can you help? How do I report a bug?"),
+			["How do I report a bug?"]
+		);
+		assert_eq!(split_questions("How do I sign in? google"), ["How do I sign in?"]);
+		assert!(split_questions(" ?! ").is_empty());
+	}
+
+	#[test]
+	fn at_most_five_questions_are_split_off() {
+		let text = "What about this one? ".repeat(6);
+		assert_eq!(split_questions(&text), ["What about this one?"; 5]);
 	}
 
 	#[test]

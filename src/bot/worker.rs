@@ -1,6 +1,6 @@
 use super::answering::{
-	Decision, Message, Pending, PendingMessages, decide, is_question, is_stale, picked,
-	question_list,
+	Decision, Message, Pending, PendingMessages, decide, is_question, is_stale, merge, picked,
+	question_list, split_questions,
 };
 use super::calibration::Calibration;
 use super::config::Config;
@@ -183,11 +183,23 @@ impl Worker {
 		&mut self,
 		summoner: &Message,
 		answer_to: &Message,
-		question: String,
+		text: String,
 	) -> Result<()> {
-		let ranking = self.rank(question).await?;
-		let score = ranking.first().map_or(0.0, |top| top.score);
-		match self.decide(&ranking, self.calibration.low_threshold) {
+		let questions = split_questions(&text);
+		let mut decisions = Vec::new();
+		let mut best_score = 0.0f32;
+		if questions.len() > 1 {
+			for question in questions {
+				let (decision, score) = self.decide_summoned(question.to_owned()).await?;
+				decisions.push(decision);
+				best_score = best_score.max(score);
+			}
+		}
+		let (decision, score) = match merge(decisions) {
+			Decision::NoMatch => self.decide_summoned(text).await?,
+			merged => (merged, best_score),
+		};
+		match decision {
 			Decision::Answer(id) => self.answer("summon", answer_to, &id, Some(score)).await,
 			Decision::Choose(ids) => self.offer("summon", answer_to, ids, score).await,
 			Decision::NoMatch => {
@@ -276,6 +288,14 @@ impl Worker {
 		tokio::task::spawn_blocking(move || matcher.rank(&text))
 			.await
 			.context("FAQ ranking task failed")?
+	}
+
+	async fn decide_summoned(&self, text: String) -> Result<(Decision, f32)> {
+		let ranking = self.rank(text).await?;
+		let top = ranking.first();
+		let score = top.map_or(0.0, |top| top.score);
+		debug!(entry = top.map(|top| top.id.as_str()), score, "ranked for summon");
+		Ok((self.decide(&ranking, self.calibration.low_threshold), score))
 	}
 
 	fn decide(&self, ranking: &[Match], threshold: f32) -> Decision {
