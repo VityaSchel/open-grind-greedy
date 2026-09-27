@@ -1,5 +1,8 @@
-# Score for answering a question (at least 4 words and a `?`) without a bot mention
-high_threshold: 0.97
+# Score for answering a question of at least 4 words without a bot mention
+high_threshold: 0.95
+
+# Score for answering a question of 2-3 words, with or without a bot mention, at least `high_threshold`
+short_question_threshold: 0.97
 
 # Score for answering a bot mention and for a reaction, at most `high_threshold`
 low_threshold: 0.88

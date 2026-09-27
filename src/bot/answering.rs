@@ -7,7 +7,8 @@ const STALE_AFTER_MS: u64 = 10 * 60 * 1000;
 const PENDING_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const MAX_CHOICES: usize = 5;
 const MAX_QUESTIONS: usize = MAX_CHOICES;
-const MIN_WORDS: usize = 4;
+const MIN_QUESTION_WORDS: usize = 2;
+const MAX_SHORT_QUESTION_WORDS: usize = 3;
 
 #[derive(Debug, PartialEq)]
 pub enum Decision {
@@ -72,12 +73,42 @@ pub fn merge(decisions: Vec<Decision>) -> Decision {
 	Decision::from_entry_ids(entry_ids)
 }
 
-pub fn split_questions(text: &str) -> Vec<&str> {
-	text.split_inclusive('?')
+pub fn questions(text: &str) -> Vec<&str> {
+	let parts = split_questions(text);
+	if parts.len() > 1 || parts.first().is_some_and(|part| is_short_question(part)) {
+		parts
+	} else {
+		vec![text]
+	}
+}
+
+fn split_questions(text: &str) -> Vec<&str> {
+	split_after_question_marks_ending_a_sentence(text)
+		.into_iter()
 		.map(str::trim)
-		.filter(|part| part.split_whitespace().count() >= MIN_WORDS)
+		.filter(|part| is_question(part) || !is_short(part))
 		.take(MAX_QUESTIONS)
 		.collect()
+}
+
+fn split_after_question_marks_ending_a_sentence(text: &str) -> Vec<&str> {
+	let mut parts = Vec::new();
+	let mut start = 0;
+	let mut characters = text.char_indices().peekable();
+	while let Some((index, character)) = characters.next() {
+		let ends_sentence = characters.peek().is_none_or(|(_, next)| next.is_whitespace());
+		if character == '?' && ends_sentence {
+			let end = index + character.len_utf8();
+			parts.push(&text[start..end]);
+			start = end;
+		}
+	}
+	parts.push(&text[start..]);
+	parts
+}
+
+pub fn question_threshold(question: &str, threshold: f32, short_question_threshold: f32) -> f32 {
+	if is_short_question(question) { threshold.max(short_question_threshold) } else { threshold }
 }
 
 pub fn answer_markdown(entry: &FaqEntry) -> String {
@@ -90,7 +121,15 @@ pub fn is_placeholder(answer: &str) -> bool {
 }
 
 pub fn is_question(text: &str) -> bool {
-	text.contains('?') && text.split_whitespace().count() >= MIN_WORDS
+	text.contains('?') && text.split_whitespace().count() >= MIN_QUESTION_WORDS
+}
+
+fn is_short(text: &str) -> bool {
+	text.split_whitespace().count() <= MAX_SHORT_QUESTION_WORDS
+}
+
+fn is_short_question(text: &str) -> bool {
+	is_question(text) && is_short(text)
 }
 
 pub fn is_stale(origin_server_ts: u64, now_ms: u64) -> bool {
@@ -302,24 +341,74 @@ mod tests {
 	}
 
 	#[test]
-	fn question_parts_are_trimmed_and_need_four_words() {
+	fn question_marks_inside_urls_do_not_end_a_question() {
+		assert_eq!(
+			split_questions("Why does this fail? https://example.org/cascade?page=2 returns 404"),
+			["Why does this fail?", "https://example.org/cascade?page=2 returns 404"]
+		);
+		assert_eq!(
+			split_questions("Is https://example.org/a?b the right link? It 404s for me"),
+			["Is https://example.org/a?b the right link?", "It 404s for me"]
+		);
+	}
+
+	#[test]
+	fn question_parts_are_trimmed_and_need_two_words() {
 		assert_eq!(split_questions("?? How do I install it?"), ["How do I install it?"]);
 		assert_eq!(
 			split_questions("  How do I install?\n Is there an iOS version ?  :) "),
 			["How do I install?", "Is there an iOS version ?"]
 		);
+		assert_eq!(split_questions("How do I sign in? google"), ["How do I sign in?"]);
+		assert_eq!(split_questions("Why? Is it free?"), ["Is it free?"]);
+		assert!(split_questions(" ?! ").is_empty());
+	}
+
+	#[test]
+	fn short_parts_are_questions_only_with_a_question_mark() {
+		assert_eq!(
+			split_questions("Who is Greedy? Is Open Grind iOS version available?"),
+			["Who is Greedy?", "Is Open Grind iOS version available?"]
+		);
 		assert_eq!(
 			split_questions("Anyone here? Can you help? How do I report a bug?"),
-			["How do I report a bug?"]
+			["Anyone here?", "Can you help?", "How do I report a bug?"]
 		);
-		assert_eq!(split_questions("How do I sign in? google"), ["How do I sign in?"]);
-		assert!(split_questions(" ?! ").is_empty());
+		assert_eq!(split_questions("Who is Greedy? thanks a lot"), ["Who is Greedy?"]);
+		assert_eq!(
+			split_questions("Who is Greedy? thanks a lot everyone"),
+			["Who is Greedy?", "thanks a lot everyone"]
+		);
 	}
 
 	#[test]
 	fn at_most_five_questions_are_split_off() {
 		let text = "What about this one? ".repeat(6);
 		assert_eq!(split_questions(&text), ["What about this one?"; 5]);
+		assert_eq!(split_questions(&"Is it free? ".repeat(6)), ["Is it free?"; 5]);
+	}
+
+	#[test]
+	fn a_message_with_one_question_part_or_none_is_one_question() {
+		assert_eq!(questions("How do I install it? thanks"), ["How do I install it? thanks"]);
+		assert_eq!(questions("Who is Greedy? lol"), ["Who is Greedy?"]);
+		assert_eq!(questions("install plugins? lol ok"), ["install plugins?"]);
+		assert_eq!(questions("Why? ok"), ["Why? ok"]);
+		assert_eq!(
+			questions("Who is Greedy? How do I install it?"),
+			["Who is Greedy?", "How do I install it?"]
+		);
+	}
+
+	#[test]
+	fn short_questions_need_the_stricter_threshold() {
+		for short in ["install it?", "Who is Greedy?"] {
+			assert_eq!(question_threshold(short, 0.88, 0.97), 0.97, "{short}");
+			assert_eq!(question_threshold(short, 0.99, 0.97), 0.99, "{short}");
+		}
+		for other in ["Is Open Grind free?", "install?", "ios app", "donate"] {
+			assert_eq!(question_threshold(other, 0.88, 0.97), 0.88, "{other}");
+		}
 	}
 
 	#[test]
@@ -346,11 +435,13 @@ mod tests {
 	}
 
 	#[test]
-	fn question_needs_four_words_and_a_question_mark() {
+	fn question_needs_two_words_and_a_question_mark() {
 		assert!(is_question("how do I install it?"));
 		assert!(is_question(" how\ndo  I\tinstall? "));
+		assert!(is_question("how to install?"));
+		assert!(is_question("install it?"));
+		assert!(!is_question("install?"));
 		assert!(!is_question("how do I install"));
-		assert!(!is_question("how to install?"));
 		assert!(!is_question("   "));
 	}
 

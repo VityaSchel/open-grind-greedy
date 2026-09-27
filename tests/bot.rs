@@ -41,11 +41,16 @@ fn vector(text: &str) -> Vec<f32> {
 		| "how do I install it?"
 		| "how do I install it"
 		| "install it?"
+		| "install?"
 		| "is the app free? how do I get it?" => vec![1.0, 0.0, 0.0, 0.0],
+		"installing it then?" => vec![1.0, 0.0, 0.0, 0.75],
 		"How do I update on Android?" => vec![0.0, 1.0, 0.0, 0.0],
 		"How do I update on Windows?" => vec![0.0, 0.0, 1.0, 0.0],
 		"how do I update the app?" => vec![0.0, 1.0, 1.0, 0.0],
-		"can I install plugins too?" => vec![1.0, 0.0, 0.0, 2.0],
+		"can I install plugins too?"
+		| "install plugins?"
+		| "install plugins? lol ok"
+		| "install plugins" => vec![1.0, 0.0, 0.0, 2.0],
 		"Can I donate?" => vec![0.0, 0.0, 0.0, -1.0],
 		"can I donate to the project?" => vec![0.6, 0.6, 0.6, -1.0],
 		_ => vec![0.0, 0.0, 0.0, 1.0],
@@ -192,8 +197,12 @@ impl TestBot {
 			app_service_token: AS_TOKEN.into(),
 			homeserver_token: HS_TOKEN.into(),
 		};
-		let calibration =
-			Calibration { high_threshold: 0.7, low_threshold: 0.4, ambiguity_margin: 0.02 };
+		let calibration = Calibration {
+			high_threshold: 0.7,
+			short_question_threshold: 0.9,
+			low_threshold: 0.4,
+			ambiguity_margin: 0.02,
+		};
 		let matcher = Matcher::new(Box::new(MockEmbedder), faq()).unwrap();
 		let http = reqwest::Client::new();
 		let (app, _worker) =
@@ -307,10 +316,10 @@ fn assert_reply(call: &Call, body: &str, reply_to: &str, mention: &str) {
 }
 
 #[tokio::test]
-async fn auto_answers_questions_of_at_least_four_words() {
+async fn auto_answers_questions_but_not_statements_or_single_words() {
 	let bot = TestBot::start().await;
 	bot.transaction(vec![
-		text("$short", ALICE, "install it?"),
+		text("$word", ALICE, "install?"),
 		text("$statement", BOB, "how do I install it"),
 		text("$q", ALICE, "how do I install it?"),
 		text("$again", BOB, "how do I install it?"),
@@ -325,15 +334,55 @@ async fn auto_answers_questions_of_at_least_four_words() {
 }
 
 #[tokio::test]
-async fn reacts_between_the_thresholds() {
+async fn short_auto_questions_are_answered_only_at_the_short_threshold_and_never_reacted_to() {
 	let bot = TestBot::start().await;
-	bot.transaction(vec![text("$q", ALICE, "can I install plugins too?")]).await;
+	bot.transaction(vec![
+		text("$above-high", ALICE, "installing it then?"),
+		text("$above-low", ALICE, "install plugins?"),
+		text("$short-part", ALICE, "install plugins? is the weather nice today?"),
+		text("$trailing-words", ALICE, "install plugins? lol ok"),
+		text("$q", BOB, "install it?"),
+	])
+	.await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_eq!((calls[0].kind, calls[0].event_type.as_str()), ("send", "m.reaction"));
-	assert_eq!(
-		calls[0].content,
-		json!({ "m.relates_to": { "rel_type": "m.annotation", "event_id": "$q", "key": "🙋" } })
+	assert_reply(&calls[0], INSTALL_REPLY, "$q", BOB);
+	assert_eq!(bot.calls().len(), 1);
+}
+
+#[tokio::test]
+async fn auto_answers_each_question_of_a_message_at_its_threshold() {
+	let bot = TestBot::start().await;
+	bot.transaction(vec![
+		text("$both", ALICE, "How do I update on Android? install it?"),
+		text("$long", BOB, "installing it then? How do I update on Windows?"),
+	])
+	.await;
+	let calls = bot.wait_for_calls(2).await;
+	assert_reply(
+		&calls[0],
+		"1. How do I update on Android?\n2. How do I install it?",
+		"$both",
+		ALICE,
 	);
+	assert_reply(&calls[1], UPDATE_WINDOWS_REPLY, "$long", BOB);
+}
+
+#[tokio::test]
+async fn reacts_between_the_thresholds_to_questions_of_at_least_four_words() {
+	let bot = TestBot::start().await;
+	bot.transaction(vec![
+		text("$q", ALICE, "can I install plugins too?"),
+		text("$parts", BOB, "Who are you? can I install plugins too?"),
+	])
+	.await;
+	let calls = bot.wait_for_calls(2).await;
+	for (call, reacted) in calls.iter().zip(["$q", "$parts"]) {
+		assert_eq!((call.kind, call.event_type.as_str()), ("send", "m.reaction"));
+		assert_eq!(
+			call.content,
+			json!({ "m.relates_to": { "rel_type": "m.annotation", "event_id": reacted, "key": "🙋" } })
+		);
+	}
 }
 
 #[tokio::test]
@@ -559,6 +608,28 @@ async fn summon_with_two_questions_for_one_entry_answers_once() {
 	assert_reply(&calls[0], INSTALL_REPLY, "$summon", ALICE);
 	assert_reply(&calls[1], "How may I help?", "$ping", BOB);
 	assert_eq!(bot.calls().len(), 2);
+}
+
+#[tokio::test]
+async fn summon_holds_short_questions_but_not_keywords_to_the_short_threshold() {
+	let bot = TestBot::start().await;
+	bot.transaction(vec![
+		summon("$both", ALICE, "install it? How do I update on Windows?"),
+		summon("$long", BOB, "installing it then? How do I update on Windows?"),
+		summon("$short", ALICE, "installing it then?"),
+		summon("$keywords", BOB, "install plugins"),
+	])
+	.await;
+	let calls = bot.wait_for_calls(4).await;
+	assert_reply(
+		&calls[0],
+		"1. How do I install it?\n2. How do I update on Windows?",
+		"$both",
+		ALICE,
+	);
+	assert_reply(&calls[1], UPDATE_WINDOWS_REPLY, "$long", BOB);
+	assert_reply(&calls[2], "I don't have an FAQ answer for that message.", "$short", ALICE);
+	assert_reply(&calls[3], INSTALL_REPLY, "$keywords", BOB);
 }
 
 #[tokio::test]

@@ -1,6 +1,6 @@
 use super::answering::{
 	Decision, Message, Pending, PendingMessages, answer_markdown, decide, is_question, is_stale,
-	merge, picked, question_list, split_questions,
+	merge, picked, question_list, question_threshold, questions,
 };
 use super::calibration::Calibration;
 use super::config::Config;
@@ -185,20 +185,15 @@ impl Worker {
 		answer_to: &Message,
 		text: String,
 	) -> Result<()> {
-		let questions = split_questions(&text);
-		let mut decisions = Vec::new();
-		let mut best_score = 0.0f32;
-		if questions.len() > 1 {
-			for question in questions {
-				let (decision, score) = self.decide_summoned(question.to_owned()).await?;
-				decisions.push(decision);
-				best_score = best_score.max(score);
-			}
+		let low_threshold = self.calibration.low_threshold;
+		let questions = questions(&text);
+		let mut ranked = self.rank_questions(&questions).await?;
+		let mut decision = self.decide_questions(&ranked, low_threshold);
+		if decision == Decision::NoMatch && questions.len() > 1 {
+			ranked = self.rank_questions(&[text.as_str()]).await?;
+			decision = self.decide_questions(&ranked, low_threshold);
 		}
-		let (decision, score) = match merge(decisions) {
-			Decision::NoMatch => self.decide_summoned(text).await?,
-			merged => (merged, best_score),
-		};
+		let score = top_score(&ranked);
 		match decision {
 			Decision::Answer(id) => self.answer("summon", answer_to, &id, Some(score)).await,
 			Decision::Choose(ids) => self.offer("summon", answer_to, ids, score).await,
@@ -219,22 +214,21 @@ impl Worker {
 			debug!(room = %message.room_id, sender = %message.sender, "moderator, skipping auto mode");
 			return Ok(());
 		}
-		let ranking = self.rank(body.to_owned()).await?;
-		let Some(top) = ranking.first() else {
-			return Ok(());
-		};
-		match self.decide(&ranking, self.calibration.high_threshold) {
-			Decision::Answer(id) => self.answer("auto", message, &id, Some(top.score)).await,
-			Decision::Choose(ids) => self.offer("auto", message, ids, top.score).await,
+		let ranked = self.rank_questions(&questions(body)).await?;
+		let score = top_score(&ranked);
+		match self.decide_questions(&ranked, self.calibration.high_threshold) {
+			Decision::Answer(id) => self.answer("auto", message, &id, Some(score)).await,
+			Decision::Choose(ids) => self.offer("auto", message, ids, score).await,
 			Decision::NoMatch => {
-				let decision_if_summoned = self.decide(&ranking, self.calibration.low_threshold);
+				let decision_if_summoned =
+					self.decide_questions(&ranked, self.calibration.low_threshold);
 				let Some(entry) = decision_if_summoned.best() else {
-					debug!(room = %message.room_id, entry = %top.id, score = top.score, "no match");
+					debug!(room = %message.room_id, score, "no match");
 					return Ok(());
 				};
 				let reaction = matrix::reaction(&message.event_id, RAISED_HAND);
 				self.matrix.send(&message.room_id, "m.reaction", &reaction).await?;
-				info!(mode = "auto", room = %message.room_id, entry, score = top.score, "reacted");
+				info!(mode = "auto", room = %message.room_id, entry, score, "reacted");
 				Ok(())
 			}
 		}
@@ -290,19 +284,41 @@ impl Worker {
 			.context("FAQ ranking task failed")?
 	}
 
-	async fn decide_summoned(&self, text: String) -> Result<(Decision, f32)> {
-		let ranking = self.rank(text).await?;
-		let top = ranking.first();
-		let score = top.map_or(0.0, |top| top.score);
-		debug!(entry = top.map(|top| top.id.as_str()), score, "ranked for summon");
-		Ok((self.decide(&ranking, self.calibration.low_threshold), score))
+	async fn rank_questions<'q>(
+		&self,
+		questions: &[&'q str],
+	) -> Result<Vec<(&'q str, Vec<Match>)>> {
+		let mut ranked = Vec::with_capacity(questions.len());
+		for &question in questions {
+			let ranking = self.rank(question.to_owned()).await?;
+			let top = ranking.first();
+			debug!(
+				entry = top.map(|top| top.id.as_str()),
+				score = top.map(|top| top.score),
+				"ranked"
+			);
+			ranked.push((question, ranking));
+		}
+		Ok(ranked)
 	}
 
-	fn decide(&self, ranking: &[Match], threshold: f32) -> Decision {
-		decide(ranking, threshold, self.calibration.ambiguity_margin, |id| self.matcher.entry(id))
+	fn decide_questions(&self, ranked: &[(&str, Vec<Match>)], threshold: f32) -> Decision {
+		let Calibration { short_question_threshold, ambiguity_margin, .. } = self.calibration;
+		let decisions = ranked.iter().map(|(question, ranking)| {
+			let threshold = question_threshold(question, threshold, short_question_threshold);
+			decide(ranking, threshold, ambiguity_margin, |id| self.matcher.entry(id))
+		});
+		merge(decisions.collect())
 	}
 
 	fn entry(&self, id: &str) -> Result<&FaqEntry> {
 		self.matcher.entry(id).with_context(|| format!("FAQ entry '{id}' vanished"))
 	}
+}
+
+fn top_score(ranked: &[(&str, Vec<Match>)]) -> f32 {
+	ranked
+		.iter()
+		.filter_map(|(_, ranking)| ranking.first())
+		.fold(0.0, |best, top| best.max(top.score))
 }
