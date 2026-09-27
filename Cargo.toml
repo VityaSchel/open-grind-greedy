@@ -9,8 +9,8 @@ anyhow = "1.0.104"
 axum = "0.8.9"
 clap = { version = "4", features = ["derive"] }
 fastembed = { version = "5", default-features = false, features = [
-	"ort-download-binaries-native-tls",
-	"hf-hub-native-tls",
+	"ort-download-binaries-rustls-tls",
+	"hf-hub-rustls-tls",
 ] }
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
 reqwest = { version = "0.13.4", default-features = false, features = [
