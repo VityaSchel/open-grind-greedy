@@ -1,0 +1,61 @@
+[Unit]
+Description=Open Grind Greedy Matrix bot
+After=network-online.target nss-lookup.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/greedy bot --config /etc/open-grind-greedy/config.yaml --faq /etc/open-grind-greedy/faq.json
+Environment=HOST=127.0.0.1
+Environment=PORT=8090
+# hf-hub aborts without a home directory, and DynamicUser= sets none.
+Environment=HOME=%C/open-grind-greedy
+Environment=FASTEMBED_CACHE_DIR=%C/open-grind-greedy
+LoadCredential=app-service-token:/etc/open-grind-greedy/credentials/app-service-token
+LoadCredential=homeserver-token:/etc/open-grind-greedy/credentials/homeserver-token
+CacheDirectory=open-grind-greedy
+Restart=always
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=40s
+# Every start embeds the FAQ on all cores; the homeserver on the same host comes first.
+CPUWeight=20
+
+DynamicUser=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+LimitCORE=0
+
+ProtectSystem=strict
+ProtectHome=yes
+ProtectProc=invisible
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @obsolete @mount @debug @cpu-emulation @module @raw-io @reboot @swap @clock
+IPAddressDeny=169.254.169.254/32 fd00:ec2::254/128
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+# Deployment settings. All properties are required.
+homeserver_url: https://matrix.opengrind.org
+app_service_user: "@greedy:opengrind.org"
+room_ids:
+    - "!MNzF_r9RLVXG-Iyr5nPbjds-7-0rIgq1BZdzHXQjshE"
+    - "!6A0aN28yRLpX1K8aLtfJWm87DXoyyMGjkPeORakOBZg"
+    - "!b2GcLXF4xhTrmSPXcdGk-9UN40uEPnAz7NuH031cxLk"

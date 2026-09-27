@@ -1,0 +1,8 @@
+# Score for answering a question (at least 4 words and a `?`) without a bot mention
+high_threshold: 0.97
+
+# Score for answering a bot mention and for a reaction, at most `high_threshold`
+low_threshold: 0.88
+
+# Entries this close to the best one are listed together
+ambiguity_margin: 0.02
