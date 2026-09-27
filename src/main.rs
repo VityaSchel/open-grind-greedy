@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
-use greedy::{FastembedEmbedder, Matcher, bot, load_faq};
+use greedy::{EmbedReport, EmbeddingCache, FastembedEmbedder, Matcher, bot, load_faq};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -103,7 +103,22 @@ fn build_matcher(common: &CommonArgs, quiet: bool) -> Result<Matcher> {
 		);
 	}
 	let embedder = FastembedEmbedder::load_or_download(quiet)?;
-	Matcher::new(Box::new(embedder), entries)
+	let (matcher, report) =
+		Matcher::with_cache(Box::new(embedder), entries, EmbeddingCache::in_cache_dir())?;
+	print_embed_report(&report, quiet);
+	Ok(matcher)
+}
+
+fn print_embed_report(report: &EmbedReport, quiet: bool) {
+	for warning in &report.cache_warnings {
+		eprintln!("warning: {warning}");
+	}
+	if !quiet {
+		eprintln!(
+			"{} FAQ texts from the embedding cache, {} embedded",
+			report.cached_count, report.embedded_count
+		);
+	}
 }
 
 fn one_shot_match(

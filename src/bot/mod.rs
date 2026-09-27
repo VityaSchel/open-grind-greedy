@@ -13,6 +13,7 @@ pub use config::Config;
 pub use registration::registration_yaml;
 
 use crate::embedder::FastembedEmbedder;
+use crate::embedding_cache::EmbeddingCache;
 use crate::faq::load_faq;
 use crate::matcher::Matcher;
 use anyhow::{Context, Result};
@@ -76,8 +77,12 @@ fn load_matcher(faq_path: &Path, quiet: bool) -> Result<Matcher> {
 		"FAQ loaded; placeholder answers are never posted"
 	);
 	let embedder = FastembedEmbedder::load_or_download(quiet)?;
-	let matcher = Matcher::new(Box::new(embedder), entries)?;
-	info!("FAQ embedded");
+	let (matcher, report) =
+		Matcher::with_cache(Box::new(embedder), entries, EmbeddingCache::in_cache_dir())?;
+	for warning in &report.cache_warnings {
+		warn!("{warning}");
+	}
+	info!(cached = report.cached_count, new = report.embedded_count, "FAQ embedded");
 	Ok(matcher)
 }
 

@@ -31,7 +31,7 @@ Open Grind's Matrix chat bot.
    	-H "Authorization: Bearer $(cat /etc/open-grind-greedy/credentials/app-service-token)" \
    	"https://matrix.opengrind.org/_matrix/client/v3/profile/@greedy:opengrind.org/displayname"
    ```
-8. Run `systemctl daemon-reload && systemctl enable --now open-grind-greedy` and wait for `greedy appservice listening` in `journalctl -u open-grind-greedy -f`. The first start downloads the model into `/var/cache/open-grind-greedy/`, and every start embeds the whole FAQ, which takes a few minutes.
+8. Run `systemctl daemon-reload && systemctl enable --now open-grind-greedy` and wait for `greedy appservice listening` in `journalctl -u open-grind-greedy -f`. The first start downloads the model into `/var/cache/open-grind-greedy/` and embeds the whole FAQ there, which takes a few minutes.
 9. Invite `app_service_user` to each room in `room_ids`
 
 ## Environment variables
@@ -64,7 +64,7 @@ A JSON array of entries; unknown fields are rejected.
 - `paraphrases`: optional. An entry scores its best match across the question and paraphrases.
 - `answer`: markdown.
 
-Model used is `bge-small`.
+Model used is `bge-small`. The FAQ embeddings are cached in `$FASTEMBED_CACHE_DIR/faq-embeddings.bin` (default `./.fastembed_cache`).
 
 ## CLI
 

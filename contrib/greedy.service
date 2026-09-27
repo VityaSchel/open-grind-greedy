@@ -19,7 +19,7 @@ Restart=always
 RestartSec=5s
 KillSignal=SIGTERM
 TimeoutStopSec=40s
-# Every start embeds the FAQ on all cores; the homeserver on the same host comes first.
+# Embedding the FAQ uses all cores; the homeserver on the same host comes first.
 CPUWeight=20
 
 DynamicUser=yes

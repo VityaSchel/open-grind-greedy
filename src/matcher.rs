@@ -1,6 +1,8 @@
+use crate::embedding_cache::EmbeddingCache;
 use crate::faq::FaqEntry;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow, ensure};
 use serde::Serialize;
+use std::collections::HashMap;
 
 const MAX_QUERY_CHARS_WORTH_TOKENIZING: usize = 4096;
 
@@ -12,6 +14,13 @@ pub trait Embedder: Send + Sync {
 pub struct Match {
 	pub id: String,
 	pub score: f32,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct EmbedReport {
+	pub cached_count: usize,
+	pub embedded_count: usize,
+	pub cache_warnings: Vec<String>,
 }
 
 struct PhrasingVector {
@@ -27,8 +36,25 @@ pub struct Matcher {
 
 impl Matcher {
 	pub fn new(embedder: Box<dyn Embedder>, entries: Vec<FaqEntry>) -> Result<Self> {
-		let phrasing_vectors = embed_entries(embedder.as_ref(), &entries)?;
-		Ok(Self { embedder, entries, phrasing_vectors })
+		Self::build(embedder, entries, None).map(|(matcher, _)| matcher)
+	}
+
+	pub fn with_cache(
+		embedder: Box<dyn Embedder>,
+		entries: Vec<FaqEntry>,
+		cache: EmbeddingCache,
+	) -> Result<(Self, EmbedReport)> {
+		Self::build(embedder, entries, Some(cache))
+	}
+
+	fn build(
+		embedder: Box<dyn Embedder>,
+		entries: Vec<FaqEntry>,
+		cache: Option<EmbeddingCache>,
+	) -> Result<(Self, EmbedReport)> {
+		let (phrasing_vectors, report) =
+			embed_entries(embedder.as_ref(), &entries, cache.as_ref())?;
+		Ok((Self { embedder, entries, phrasing_vectors }, report))
 	}
 
 	pub fn entries(&self) -> &[FaqEntry] {
@@ -68,30 +94,56 @@ impl Matcher {
 	}
 }
 
-fn embed_entries(embedder: &dyn Embedder, entries: &[FaqEntry]) -> Result<Vec<PhrasingVector>> {
-	let mut owners = Vec::new();
-	let mut texts = Vec::new();
+fn embed_entries(
+	embedder: &dyn Embedder,
+	entries: &[FaqEntry],
+	cache: Option<&EmbeddingCache>,
+) -> Result<(Vec<PhrasingVector>, EmbedReport)> {
+	let mut unique_texts = Vec::new();
+	let mut unique_text_slots = HashMap::new();
+	let mut phrasing_slots = Vec::new();
 	for (entry_index, entry) in entries.iter().enumerate() {
-		owners.push(entry_index);
-		texts.push(entry.question.as_str());
-		for paraphrase in &entry.paraphrases {
-			owners.push(entry_index);
-			texts.push(paraphrase.as_str());
+		for phrasing in std::iter::once(&entry.question).chain(&entry.paraphrases) {
+			let slot = *unique_text_slots.entry(phrasing.as_str()).or_insert_with(|| {
+				unique_texts.push(phrasing.as_str());
+				unique_texts.len() - 1
+			});
+			phrasing_slots.push((entry_index, slot));
 		}
 	}
-	let mut vectors = embedder.embed(&texts)?;
-	if vectors.len() != texts.len() {
-		bail!("embedder returned {} vectors for {} texts", vectors.len(), texts.len());
-	}
+	let (mut vectors, report) = match cache {
+		Some(cache) => cache.embed(embedder, &unique_texts)?,
+		None => {
+			let report =
+				EmbedReport { embedded_count: unique_texts.len(), ..EmbedReport::default() };
+			(embed_all(embedder, &unique_texts)?, report)
+		}
+	};
 	for vector in &mut vectors {
 		l2_normalize(vector);
 	}
-	let phrasing_vectors = owners
+	let phrasing_vectors = phrasing_slots
 		.into_iter()
-		.zip(vectors)
-		.map(|(entry_index, normalized)| PhrasingVector { entry_index, normalized })
+		.map(|(entry_index, slot)| PhrasingVector {
+			entry_index,
+			normalized: vectors[slot].clone(),
+		})
 		.collect();
-	Ok(phrasing_vectors)
+	Ok((phrasing_vectors, report))
+}
+
+pub(crate) fn embed_all(embedder: &dyn Embedder, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+	if texts.is_empty() {
+		return Ok(Vec::new());
+	}
+	let vectors = embedder.embed(texts)?;
+	ensure!(
+		vectors.len() == texts.len(),
+		"embedder returned {} vectors for {} texts",
+		vectors.len(),
+		texts.len()
+	);
+	Ok(vectors)
 }
 
 pub fn dot(a: &[f32], b: &[f32]) -> f32 {

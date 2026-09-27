@@ -1,10 +1,11 @@
 use crate::matcher::Embedder;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use fastembed::{EmbeddingModel, TextEmbedding, TextInitOptions};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 const MODEL: EmbeddingModel = EmbeddingModel::BGESmallENV15;
+const BATCH_SIZE: usize = 32;
 
 pub struct FastembedEmbedder {
 	model: Mutex<TextEmbedding>,
@@ -31,12 +32,32 @@ impl FastembedEmbedder {
 
 impl Embedder for FastembedEmbedder {
 	fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-		let mut model = self.model.lock().map_err(|_| anyhow!("embedding model lock poisoned"))?;
-		model.embed(texts, None).context("embedding failed")
+		let mut padding_saving_order: Vec<usize> = (0..texts.len()).collect();
+		padding_saving_order.sort_by_key(|&index| texts[index].len());
+		let texts_in_padding_saving_order: Vec<&str> =
+			padding_saving_order.iter().map(|&index| texts[index]).collect();
+		let embedded = {
+			let mut model =
+				self.model.lock().map_err(|_| anyhow!("embedding model lock poisoned"))?;
+			model
+				.embed(&texts_in_padding_saving_order, Some(BATCH_SIZE))
+				.context("embedding failed")?
+		};
+		ensure!(
+			embedded.len() == texts.len(),
+			"model returned {} vectors for {} texts",
+			embedded.len(),
+			texts.len()
+		);
+		let mut vectors = vec![Vec::new(); texts.len()];
+		for (index, vector) in padding_saving_order.into_iter().zip(embedded) {
+			vectors[index] = vector;
+		}
+		Ok(vectors)
 	}
 }
 
-fn cache_dir_fastembed_uses() -> PathBuf {
+pub(crate) fn cache_dir_fastembed_uses() -> PathBuf {
 	std::env::var("HF_HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(fastembed::get_cache_dir()))
 }
 
