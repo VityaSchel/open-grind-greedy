@@ -23,6 +23,9 @@ const HS_TOKEN: &str = "hs-secret";
 const AS_TOKEN: &str = "as-secret";
 const WAIT: Duration = Duration::from_secs(5);
 const INSTALL_ANSWER: &str = "Download it from **the releases page**.";
+const INSTALL_REPLY: &str = "**How do I install it?**\n\nDownload it from **the releases page**.";
+const UPDATE_ANDROID_REPLY: &str = "**How do I update on Android?**\n\nOpen the app store.";
+const UPDATE_WINDOWS_REPLY: &str = "**How do I update on Windows?**\n\nRun the installer again.";
 
 struct MockEmbedder;
 
@@ -290,12 +293,12 @@ fn ping_in_reply(event_id: &str, sender: &str, to: &str) -> Value {
 }
 
 #[track_caller]
-fn assert_notice(call: &Call, body: &str, reply_to: &str, mention: &str) {
+fn assert_reply(call: &Call, body: &str, reply_to: &str, mention: &str) {
 	assert_eq!(
 		(call.kind, call.room_id.as_str(), call.event_type.as_str()),
 		("send", ROOM, "m.room.message")
 	);
-	assert_eq!(call.content["msgtype"], "m.notice");
+	assert_eq!(call.content["msgtype"], "m.text");
 	assert_eq!(call.content["body"], body);
 	assert_eq!(call.content["format"], "org.matrix.custom.html");
 	assert_eq!(call.content["m.relates_to"], json!({ "m.in_reply_to": { "event_id": reply_to } }));
@@ -314,10 +317,10 @@ async fn auto_answers_questions_of_at_least_four_words() {
 	])
 	.await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[0], INSTALL_ANSWER, "$q", ALICE);
+	assert_reply(&calls[0], INSTALL_REPLY, "$q", ALICE);
 	let html = calls[0].content["formatted_body"].as_str().unwrap();
 	assert!(html.contains("<strong>the releases page</strong>"), "{html}");
-	assert_notice(&calls[1], INSTALL_ANSWER, "$again", BOB);
+	assert_reply(&calls[1], INSTALL_REPLY, "$again", BOB);
 	assert_eq!(bot.calls().len(), 2);
 }
 
@@ -356,7 +359,7 @@ async fn moderators_get_no_unprompted_answers_or_reactions() {
 	])
 	.await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(&calls[0], INSTALL_ANSWER, "$q", ALICE);
+	assert_reply(&calls[0], INSTALL_REPLY, "$q", ALICE);
 	assert_eq!(bot.calls().len(), 1);
 }
 
@@ -366,7 +369,7 @@ async fn unreadable_power_levels_leave_auto_mode_on() {
 	*bot.mock.power_levels.lock().unwrap() = None;
 	bot.transaction(vec![text("$q", MODERATOR, "how do I install it?")]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(&calls[0], INSTALL_ANSWER, "$q", MODERATOR);
+	assert_reply(&calls[0], INSTALL_REPLY, "$q", MODERATOR);
 }
 
 #[tokio::test]
@@ -393,7 +396,7 @@ async fn room_version_12_creators_count_as_moderators() {
 	let calls = bot.wait_for_calls(1).await;
 	assert_eq!(
 		(calls[0].room_id.as_str(), &calls[0].content["body"]),
-		(V12_ROOM, &json!(INSTALL_ANSWER))
+		(V12_ROOM, &json!(INSTALL_REPLY))
 	);
 	assert_eq!(calls[0].content["m.relates_to"]["m.in_reply_to"]["event_id"], "$q");
 	assert_eq!(bot.calls().len(), 1);
@@ -403,7 +406,7 @@ async fn start_with_list() -> TestBot {
 	let bot = TestBot::start().await;
 	bot.transaction(vec![text("$q", ALICE, "how do I update the app?")]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(
+	assert_reply(
 		&calls[0],
 		"1. How do I update on Android?\n2. How do I update on Windows?",
 		"$q",
@@ -421,11 +424,11 @@ async fn picks_from_a_question_list_answer_the_original_message() {
 		"> <@faq:test> 1. How do I update on Android?\n> 2. How do I update on Windows?\n\n2";
 	bot.transaction(vec![reply("$pick2", BOB, fallback, "$sent1")]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[1], "Run the installer again.", "$q", ALICE);
+	assert_reply(&calls[1], UPDATE_WINDOWS_REPLY, "$q", ALICE);
 
 	bot.transaction(vec![reply("$pick1", BOB, " 1 ", "$sent1")]).await;
 	let calls = bot.wait_for_calls(3).await;
-	assert_notice(&calls[2], "Open the app store.", "$q", ALICE);
+	assert_reply(&calls[2], UPDATE_ANDROID_REPLY, "$q", ALICE);
 
 	let pill = message(
 		"$pill",
@@ -441,7 +444,7 @@ async fn picks_from_a_question_list_answer_the_original_message() {
 	);
 	bot.transaction(vec![pill]).await;
 	let calls = bot.wait_for_calls(4).await;
-	assert_notice(&calls[3], "Run the installer again.", "$q", ALICE);
+	assert_reply(&calls[3], UPDATE_WINDOWS_REPLY, "$q", ALICE);
 }
 
 #[tokio::test]
@@ -449,11 +452,11 @@ async fn invalid_pick_asks_for_the_number() {
 	let bot = start_with_list().await;
 	bot.transaction(vec![reply("$pick", BOB, "two", "$sent1")]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[1], "Pick the question number in my message", "$pick", BOB);
+	assert_reply(&calls[1], "Pick the question number in my message", "$pick", BOB);
 
 	bot.transaction(vec![reply("$retry", BOB, "2", "$sent1")]).await;
 	let calls = bot.wait_for_calls(3).await;
-	assert_notice(&calls[2], "Run the installer again.", "$q", ALICE);
+	assert_reply(&calls[2], UPDATE_WINDOWS_REPLY, "$q", ALICE);
 }
 
 #[tokio::test]
@@ -461,11 +464,11 @@ async fn a_number_replied_to_an_answer_is_not_a_pick() {
 	let bot = TestBot::start().await;
 	bot.transaction(vec![text("$q", ALICE, "how do I install it?")]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(&calls[0], INSTALL_ANSWER, "$q", ALICE);
+	assert_reply(&calls[0], INSTALL_REPLY, "$q", ALICE);
 	bot.transaction(vec![reply("$number", BOB, "1", "$sent1")]).await;
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[1], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[1], "How may I help?", "$ping", BOB);
 	assert_eq!(bot.calls().len(), 2);
 }
 
@@ -474,19 +477,19 @@ async fn moderators_can_still_pick_and_summon() {
 	let bot = start_with_list().await;
 	bot.transaction(vec![reply("$pick", MODERATOR, "2", "$sent1")]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[1], "Run the installer again.", "$q", ALICE);
+	assert_reply(&calls[1], UPDATE_WINDOWS_REPLY, "$q", ALICE);
 
 	bot.serve_event(text("$old", ALICE, "how do I install it?"));
 	bot.transaction(vec![ping_in_reply("$summon", MODERATOR, "$old")]).await;
 	let calls = bot.wait_for_calls(3).await;
-	assert_notice(&calls[2], INSTALL_ANSWER, "$old", ALICE);
+	assert_reply(&calls[2], INSTALL_REPLY, "$old", ALICE);
 
 	bot.transaction(vec![ping("$ping", MODERATOR)]).await;
 	let calls = bot.wait_for_calls(4).await;
-	assert_notice(&calls[3], "How may I help?", "$ping", MODERATOR);
+	assert_reply(&calls[3], "How may I help?", "$ping", MODERATOR);
 	bot.transaction(vec![reply("$question", MODERATOR, "how do I install it?", "$sent4")]).await;
 	let calls = bot.wait_for_calls(5).await;
-	assert_notice(&calls[4], INSTALL_ANSWER, "$question", MODERATOR);
+	assert_reply(&calls[4], INSTALL_REPLY, "$question", MODERATOR);
 }
 
 #[tokio::test]
@@ -495,16 +498,16 @@ async fn ping_in_a_reply_answers_the_replied_to_message() {
 	bot.serve_event(text("$old", ALICE, "how do I install it?"));
 	bot.transaction(vec![ping_in_reply("$summon", BOB, "$old")]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(&calls[0], INSTALL_ANSWER, "$old", ALICE);
+	assert_reply(&calls[0], INSTALL_REPLY, "$old", ALICE);
 
 	bot.transaction(vec![ping_in_reply("$lost", BOB, "$missing")]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[1], "I couldn't read that message.", "$lost", BOB);
+	assert_reply(&calls[1], "I couldn't read that message.", "$lost", BOB);
 
 	bot.serve_event(text("$chatter", ALICE, "nice weather today"));
 	bot.transaction(vec![ping_in_reply("$unknown", BOB, "$chatter")]).await;
 	let calls = bot.wait_for_calls(3).await;
-	assert_notice(&calls[2], "I don't have an FAQ answer for that message.", "$unknown", BOB);
+	assert_reply(&calls[2], "I don't have an FAQ answer for that message.", "$unknown", BOB);
 }
 
 fn summon(event_id: &str, sender: &str, question: &str) -> Value {
@@ -517,7 +520,7 @@ async fn summon_with_two_questions_lists_an_entry_for_each_to_pick_in_turn() {
 	let questions = "can I install plugins too? How do I update on Windows?";
 	bot.transaction(vec![summon("$summon", ALICE, questions)]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(
+	assert_reply(
 		&calls[0],
 		"1. How do I install it?\n2. How do I update on Windows?",
 		"$summon",
@@ -526,11 +529,11 @@ async fn summon_with_two_questions_lists_an_entry_for_each_to_pick_in_turn() {
 
 	bot.transaction(vec![reply("$pick1", ALICE, "1", "$sent1")]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[1], INSTALL_ANSWER, "$summon", ALICE);
+	assert_reply(&calls[1], INSTALL_REPLY, "$summon", ALICE);
 
 	bot.transaction(vec![reply("$pick2", ALICE, "2", "$sent1")]).await;
 	let calls = bot.wait_for_calls(3).await;
-	assert_notice(&calls[2], "Run the installer again.", "$summon", ALICE);
+	assert_reply(&calls[2], UPDATE_WINDOWS_REPLY, "$summon", ALICE);
 }
 
 #[tokio::test]
@@ -539,7 +542,7 @@ async fn ping_in_a_reply_to_two_questions_lists_entries_in_question_order() {
 	bot.serve_event(text("$old", ALICE, "How do I update on Android? How do I install it? thanks"));
 	bot.transaction(vec![ping_in_reply("$summon", BOB, "$old")]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(
+	assert_reply(
 		&calls[0],
 		"1. How do I update on Android?\n2. How do I install it?",
 		"$old",
@@ -553,8 +556,8 @@ async fn summon_with_two_questions_for_one_entry_answers_once() {
 	bot.transaction(vec![summon("$summon", ALICE, "How do I install it? how do I install it")]).await;
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[0], INSTALL_ANSWER, "$summon", ALICE);
-	assert_notice(&calls[1], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], INSTALL_REPLY, "$summon", ALICE);
+	assert_reply(&calls[1], "How may I help?", "$ping", BOB);
 	assert_eq!(bot.calls().len(), 2);
 }
 
@@ -563,7 +566,7 @@ async fn summon_with_one_question_lists_close_entries_as_before() {
 	let bot = TestBot::start().await;
 	bot.transaction(vec![summon("$summon", ALICE, "how do I update the app?")]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(
+	assert_reply(
 		&calls[0],
 		"1. How do I update on Android?\n2. How do I update on Windows?",
 		"$summon",
@@ -580,8 +583,8 @@ async fn summon_falls_back_to_the_whole_message_when_no_question_matches() {
 	])
 	.await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[0], INSTALL_ANSWER, "$whole", ALICE);
-	assert_notice(&calls[1], "I don't have an FAQ answer for that message.", "$nothing", BOB);
+	assert_reply(&calls[0], INSTALL_REPLY, "$whole", ALICE);
+	assert_reply(&calls[1], "I don't have an FAQ answer for that message.", "$nothing", BOB);
 }
 
 fn in_thread(mut event: Value, root: &str, reply_to: Option<&str>) -> Value {
@@ -604,7 +607,7 @@ async fn ping_in_a_reply_answers_in_the_thread_of_the_replied_to_message() {
 	bot.transaction(vec![summon]).await;
 	let calls = bot.wait_for_calls(2).await;
 	for (call, answered) in calls.iter().zip(["$threaded", "$root"]) {
-		assert_eq!(call.content["body"], INSTALL_ANSWER);
+		assert_eq!(call.content["body"], INSTALL_REPLY);
 		assert_eq!(
 			call.content["m.relates_to"],
 			json!({
@@ -628,7 +631,7 @@ async fn ping_in_a_reply_to_the_bot_is_skipped() {
 	bot.transaction(vec![ping_in_reply("$summon", BOB, "$answer")]).await;
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
 	assert_eq!(bot.calls().len(), 1);
 }
 
@@ -637,15 +640,15 @@ async fn bare_ping_asks_how_to_help_and_the_reply_is_answered() {
 	let bot = TestBot::start().await;
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
 
 	bot.transaction(vec![reply("$blank", BOB, "?", "$sent1")]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[1], "How may I help?", "$blank", BOB);
+	assert_reply(&calls[1], "How may I help?", "$blank", BOB);
 
 	bot.transaction(vec![reply("$question", BOB, "how do I install it?", "$sent1")]).await;
 	let calls = bot.wait_for_calls(3).await;
-	assert_notice(&calls[2], INSTALL_ANSWER, "$question", BOB);
+	assert_reply(&calls[2], INSTALL_REPLY, "$question", BOB);
 }
 
 #[tokio::test]
@@ -671,7 +674,7 @@ async fn own_stale_and_edited_messages_are_ignored() {
 	])
 	.await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
 	assert_eq!(bot.calls().len(), 1);
 }
 
@@ -686,8 +689,8 @@ async fn deeply_nested_events_do_not_fail_the_transaction() {
 	deep["content"]["x"] = nested;
 	bot.transaction(vec![deep, ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[0], INSTALL_ANSWER, "$deep", ALICE);
-	assert_notice(&calls[1], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], INSTALL_REPLY, "$deep", ALICE);
+	assert_reply(&calls[1], "How may I help?", "$ping", BOB);
 }
 
 #[tokio::test]
@@ -697,8 +700,8 @@ async fn retried_transactions_are_processed_once() {
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	bot.transaction(vec![ping("$next", BOB)]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_notice(&calls[0], "How may I help?", "$ping", BOB);
-	assert_notice(&calls[1], "How may I help?", "$next", BOB);
+	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[1], "How may I help?", "$next", BOB);
 	assert_eq!(bot.calls().len(), 2);
 }
 
@@ -751,6 +754,6 @@ async fn requests_without_the_hs_token_are_rejected() {
 
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_notice(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
 	assert_eq!(bot.calls().len(), 1);
 }

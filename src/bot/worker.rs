@@ -1,6 +1,6 @@
 use super::answering::{
-	Decision, Message, Pending, PendingMessages, decide, is_question, is_stale, merge, picked,
-	question_list, split_questions,
+	Decision, Message, Pending, PendingMessages, answer_markdown, decide, is_question, is_stale,
+	merge, picked, question_list, split_questions,
 };
 use super::calibration::Calibration;
 use super::config::Config;
@@ -16,9 +16,9 @@ use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 const HOW_MAY_I_HELP: &str = "How may I help?";
-const PICK_NOTICE: &str = "Pick the question number in my message";
-const NO_ANSWER_NOTICE: &str = "I don't have an FAQ answer for that message.";
-const UNREADABLE_NOTICE: &str = "I couldn't read that message.";
+const PICK_REPLY: &str = "Pick the question number in my message";
+const NO_ANSWER_REPLY: &str = "I don't have an FAQ answer for that message.";
+const UNREADABLE_REPLY: &str = "I couldn't read that message.";
 const RAISED_HAND: &str = "🙋";
 const MODERATOR_POWER_LEVEL: i64 = 50;
 
@@ -123,7 +123,7 @@ impl Worker {
 		entry_ids: &[String],
 	) -> Result<()> {
 		let Some(entry_id) = picked(choice, entry_ids) else {
-			self.reply(picker, PICK_NOTICE).await?;
+			self.reply(picker, PICK_REPLY).await?;
 			info!(mode = "pick", room = %picker.room_id, picker = %picker.sender, "asked for a number");
 			return Ok(());
 		};
@@ -154,7 +154,7 @@ impl Worker {
 			.inspect_err(|e| warn!("cannot read the replied-to message: {e:#}"))
 			.ok();
 		let Some(replied_to) = replied_to else {
-			self.reply(summoner, UNREADABLE_NOTICE).await?;
+			self.reply(summoner, UNREADABLE_REPLY).await?;
 			return Ok(());
 		};
 		if replied_to.sender == self.config.app_service_user {
@@ -162,7 +162,7 @@ impl Worker {
 			return Ok(());
 		}
 		let Some(question) = replied_to.latest_text() else {
-			self.reply(summoner, UNREADABLE_NOTICE).await?;
+			self.reply(summoner, UNREADABLE_REPLY).await?;
 			info!(mode = "summon", room = %summoner.room_id, event = target, "replied-to message is not text");
 			return Ok(());
 		};
@@ -203,7 +203,7 @@ impl Worker {
 			Decision::Answer(id) => self.answer("summon", answer_to, &id, Some(score)).await,
 			Decision::Choose(ids) => self.offer("summon", answer_to, ids, score).await,
 			Decision::NoMatch => {
-				self.reply(summoner, NO_ANSWER_NOTICE).await?;
+				self.reply(summoner, NO_ANSWER_REPLY).await?;
 				info!(mode = "summon", room = %summoner.room_id, score, "no confident match");
 				Ok(())
 			}
@@ -255,7 +255,7 @@ impl Worker {
 		entry_id: &str,
 		score: Option<f32>,
 	) -> Result<()> {
-		self.reply(to, &self.entry(entry_id)?.answer).await?;
+		self.reply(to, &answer_markdown(self.entry(entry_id)?)).await?;
 		info!(mode, room = %to.room_id, entry = entry_id, score, answered = %to.event_id, "answered");
 		Ok(())
 	}
@@ -279,7 +279,7 @@ impl Worker {
 	}
 
 	async fn reply(&self, to: &Message, markdown: &str) -> Result<String> {
-		let content = matrix::notice(markdown, &to.event_id, to.thread_root.as_deref(), &to.sender);
+		let content = matrix::markdown_reply(markdown, &to.event_id, to.thread_root.as_deref(), &to.sender);
 		self.matrix.send(&to.room_id, "m.room.message", &content).await
 	}
 

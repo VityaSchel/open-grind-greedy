@@ -181,7 +181,7 @@ pub fn strip_reply_fallback(body: &str) -> &str {
 	rest
 }
 
-pub fn notice(markdown: &str, reply_to: &str, thread_root: Option<&str>, mention: &str) -> Value {
+pub fn markdown_reply(markdown: &str, reply_to: &str, thread_root: Option<&str>, mention: &str) -> Value {
 	let in_reply_to = json!({ "event_id": reply_to });
 	let relates_to = match thread_root {
 		Some(root) => json!({
@@ -193,7 +193,7 @@ pub fn notice(markdown: &str, reply_to: &str, thread_root: Option<&str>, mention
 		None => json!({ "m.in_reply_to": in_reply_to }),
 	};
 	json!({
-		"msgtype": "m.notice",
+		"msgtype": "m.text",
 		"body": markdown,
 		"format": HTML_FORMAT,
 		"formatted_body": render_markdown(markdown),
@@ -624,11 +624,11 @@ mod tests {
 	}
 
 	#[test]
-	fn notice_renders_markdown_and_replies_with_a_mention() {
+	fn markdown_reply_renders_markdown_and_replies_with_a_mention() {
 		let markdown =
 			"Get **it** from [releases](https://example.org/releases).\n\n1. one\n2. two";
-		let content = notice(markdown, "$question:example.org", None, "@alice:example.org");
-		assert_eq!(content["msgtype"], "m.notice");
+		let content = markdown_reply(markdown, "$question:example.org", None, "@alice:example.org");
+		assert_eq!(content["msgtype"], "m.text");
 		assert_eq!(content["body"], markdown);
 		assert_eq!(content["format"], "org.matrix.custom.html");
 		let html = content["formatted_body"].as_str().unwrap();
@@ -643,9 +643,9 @@ mod tests {
 	}
 
 	#[test]
-	fn notice_in_a_thread_replies_inside_the_thread() {
+	fn markdown_reply_in_a_thread_replies_inside_the_thread() {
 		let content =
-			notice("Releases page.", "$question:example.org", Some("$root:example.org"), "@a:b");
+			markdown_reply("Releases page.", "$question:example.org", Some("$root:example.org"), "@a:b");
 		assert_eq!(
 			content["m.relates_to"],
 			json!({
@@ -658,8 +658,8 @@ mod tests {
 	}
 
 	#[test]
-	fn notice_line_breaks_are_kept() {
-		let content = notice("first\nsecond", "$q", None, "@a:b");
+	fn markdown_reply_line_breaks_are_kept() {
+		let content = markdown_reply("first\nsecond", "$q", None, "@a:b");
 		assert_eq!(content["formatted_body"], "<p>first<br />\nsecond</p>\n");
 	}
 

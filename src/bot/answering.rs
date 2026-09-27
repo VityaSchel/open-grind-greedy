@@ -80,6 +80,10 @@ pub fn split_questions(text: &str) -> Vec<&str> {
 		.collect()
 }
 
+pub fn answer_markdown(entry: &FaqEntry) -> String {
+	format!("**{}**\n\n{}", entry.question, entry.answer)
+}
+
 pub fn is_placeholder(answer: &str) -> bool {
 	let answer = answer.trim();
 	answer.is_empty() || answer.get(..4).is_some_and(|prefix| prefix.eq_ignore_ascii_case("todo"))
@@ -316,6 +320,16 @@ mod tests {
 	fn at_most_five_questions_are_split_off() {
 		let text = "What about this one? ".repeat(6);
 		assert_eq!(split_questions(&text), ["What about this one?"; 5]);
+	}
+
+	#[test]
+	fn answer_markdown_puts_the_bold_question_above_the_answer() {
+		let mut install = entry("install", "Download it from **the releases page**.");
+		install.question = "How do I install it?".into();
+		assert_eq!(
+			answer_markdown(&install),
+			"**How do I install it?**\n\nDownload it from **the releases page**."
+		);
 	}
 
 	#[test]
