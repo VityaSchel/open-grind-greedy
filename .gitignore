@@ -2,3 +2,4 @@
 /.fastembed_cache
 .env*
 !.env.example
+.DS_Store
