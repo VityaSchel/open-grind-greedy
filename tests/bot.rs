@@ -26,7 +26,8 @@ const INSTALL_ANSWER: &str = "Download it from **the releases page**.";
 const INSTALL_REPLY: &str = "**How do I install it?**\n\nDownload it from **the releases page**.";
 const UPDATE_ANDROID_REPLY: &str = "**How do I update on Android?**\n\nOpen the app store.";
 const UPDATE_WINDOWS_REPLY: &str = "**How do I update on Windows?**\n\nRun the installer again.";
-const HOW_MAY_I_HELP: &str = "How may I help?";
+const HOW_MAY_I_HELP: &str =
+	"How may I help? I'm an FAQ bot · [source](https://git.opengrind.org/open-grind/greedy)";
 const RAISED_HAND: &str = "🙋";
 
 struct MockEmbedder;
@@ -555,7 +556,7 @@ async fn a_number_replied_to_an_answer_is_not_a_pick() {
 	bot.transaction(vec![reply("$number", BOB, "1", "$sent1")]).await;
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_reply(&calls[1], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[1], HOW_MAY_I_HELP, "$ping", BOB);
 	assert_eq!(bot.calls().len(), 2);
 }
 
@@ -573,7 +574,7 @@ async fn moderators_can_still_pick_and_summon() {
 
 	bot.transaction(vec![ping("$ping", MODERATOR)]).await;
 	let calls = bot.wait_for_calls(6).await;
-	assert_reply(&calls[5], "How may I help?", "$ping", MODERATOR);
+	assert_reply(&calls[5], HOW_MAY_I_HELP, "$ping", MODERATOR);
 	bot.transaction(vec![reply("$question", MODERATOR, "how do I install it?", "$sent6")]).await;
 	let calls = bot.wait_for_calls(7).await;
 	assert_reply(&calls[6], INSTALL_REPLY, "$question", MODERATOR);
@@ -645,7 +646,7 @@ async fn summon_with_two_questions_for_one_entry_answers_once() {
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(2).await;
 	assert_reply(&calls[0], INSTALL_REPLY, "$summon", ALICE);
-	assert_reply(&calls[1], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[1], HOW_MAY_I_HELP, "$ping", BOB);
 	assert_eq!(bot.calls().len(), 2);
 }
 
@@ -843,7 +844,7 @@ async fn ping_in_a_reply_to_the_bot_is_skipped() {
 	bot.transaction(vec![ping_in_reply("$summon", BOB, "$answer")]).await;
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], HOW_MAY_I_HELP, "$ping", BOB);
 	assert_eq!(bot.calls().len(), 1);
 }
 
@@ -852,11 +853,11 @@ async fn bare_ping_asks_how_to_help_and_the_reply_is_answered() {
 	let bot = TestBot::start().await;
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], HOW_MAY_I_HELP, "$ping", BOB);
 
 	bot.transaction(vec![reply("$blank", BOB, "?", "$sent1")]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_reply(&calls[1], "How may I help?", "$blank", BOB);
+	assert_reply(&calls[1], HOW_MAY_I_HELP, "$blank", BOB);
 
 	bot.transaction(vec![reply("$question", BOB, "how do I install it?", "$sent1")]).await;
 	let calls = bot.wait_for_calls(3).await;
@@ -884,7 +885,7 @@ async fn own_stale_and_edited_messages_are_ignored() {
 	])
 	.await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], HOW_MAY_I_HELP, "$ping", BOB);
 	assert_eq!(bot.calls().len(), 1);
 }
 
@@ -900,7 +901,7 @@ async fn deeply_nested_events_do_not_fail_the_transaction() {
 	bot.transaction(vec![deep, ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(2).await;
 	assert_reply(&calls[0], INSTALL_REPLY, "$deep", ALICE);
-	assert_reply(&calls[1], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[1], HOW_MAY_I_HELP, "$ping", BOB);
 }
 
 #[tokio::test]
@@ -910,8 +911,8 @@ async fn retried_transactions_are_processed_once() {
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	bot.transaction(vec![ping("$next", BOB)]).await;
 	let calls = bot.wait_for_calls(2).await;
-	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
-	assert_reply(&calls[1], "How may I help?", "$next", BOB);
+	assert_reply(&calls[0], HOW_MAY_I_HELP, "$ping", BOB);
+	assert_reply(&calls[1], HOW_MAY_I_HELP, "$next", BOB);
 	assert_eq!(bot.calls().len(), 2);
 }
 
@@ -964,6 +965,6 @@ async fn requests_without_the_hs_token_are_rejected() {
 
 	bot.transaction(vec![ping("$ping", BOB)]).await;
 	let calls = bot.wait_for_calls(1).await;
-	assert_reply(&calls[0], "How may I help?", "$ping", BOB);
+	assert_reply(&calls[0], HOW_MAY_I_HELP, "$ping", BOB);
 	assert_eq!(bot.calls().len(), 1);
 }

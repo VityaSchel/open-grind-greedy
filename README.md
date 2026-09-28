@@ -25,11 +25,12 @@ Open Grind's Matrix chat bot.
    ```
 5. Get registration config, `HOST` and `PORT` as in the service unit: `(HOST=127.0.0.1 PORT=8090 CREDENTIALS_DIRECTORY=/etc/open-grind-greedy/credentials exec greedy registration --config /etc/open-grind-greedy/config.yaml)`
 6. Continuwuity: send `!admin appservices register` to the admin room with the YAML in a code block in the same message
-7. Set the display name:
+7. Set the display name and the [MSC4440](https://github.com/matrix-org/matrix-spec-proposals/pull/4440) biography:
    ```sh
-   curl -f -X PUT --json '{"displayname":"Greedy"}' \
-   	-H "Authorization: Bearer $(cat /etc/open-grind-greedy/credentials/app-service-token)" \
-   	"https://matrix.opengrind.org/_matrix/client/v3/profile/@greedy:opengrind.org/displayname"
+   TOKEN=$(cat /etc/open-grind-greedy/credentials/app-service-token) 
+   PROFILE=https://matrix.opengrind.org/_matrix/client/v3/profile/@greedy:opengrind.org
+   curl -f -X PUT -H "Authorization: Bearer $TOKEN" --json '{"displayname":"Greedy 🤖"}' "$PROFILE/displayname"
+   curl -f -X PUT -H "Authorization: Bearer $TOKEN" --json '{"m.biography":{"m.text":[{"mimetype":"text/html","body":"Open Grind FAQ bot. Source: <a href=\"https://git.opengrind.org/open-grind/greedy\">git.opengrind.org/open-grind/greedy</a>"},{"body":"Open Grind FAQ bot. Source: https://git.opengrind.org/open-grind/greedy"}]}}' "$PROFILE/m.biography"
    ```
 8. Run `systemctl daemon-reload && systemctl enable --now open-grind-greedy` and wait for `greedy appservice listening` in `journalctl -u open-grind-greedy -f`. The first start downloads the model into `/var/cache/open-grind-greedy/` and embeds the whole FAQ there, which takes a few minutes.
 9. Invite `app_service_user` to each room in `room_ids`

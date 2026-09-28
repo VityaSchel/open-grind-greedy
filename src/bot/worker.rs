@@ -15,7 +15,8 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
-const HOW_MAY_I_HELP: &str = "How may I help?";
+const HOW_MAY_I_HELP: &str =
+	"How may I help? I'm an FAQ bot · [source](https://git.opengrind.org/open-grind/greedy)";
 const PICK_REPLY: &str = "Pick the question number in my message";
 const NO_ANSWER_REPLY: &str = "I don't have an FAQ answer for that message.";
 const UNREADABLE_REPLY: &str = "I couldn't read that message.";

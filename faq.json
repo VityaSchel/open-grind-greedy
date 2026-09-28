@@ -4040,12 +4040,17 @@
 			"how does the auto answer bot work",
 			"does the bot read my messages",
 			"how accurate is the faq bot",
-			"are you a bot",
+			"is greedy a bot",
 			"is this reply automated",
-			"who is this bot",
-			"how does this bot work"
+			"who is this faq bot",
+			"how does this bot work",
+			"where is your source code",
+			"where is the bot's source code",
+			"is the bot open source",
+			"is greedy open source",
+			"who made greedy bot"
 		],
-		"answer": "This FAQ bot (Greedy) is not an LLM. When pinged, it uses a small embedding model to measure how similar your message is to predefined FAQ questions and posts the pre-written answer of the closest match. It doesn't generate text, reason or hold conversations. It runs on the project's own server (CPU only, no GPU) and never sends messages to a third-party AI API."
+		"answer": "This FAQ bot (Greedy) is not an LLM. When pinged, it uses a small embedding model to measure how similar your message is to predefined FAQ questions and posts the pre-written answer of the closest match. It doesn't generate text, reason or hold conversations. It runs on the project's own server (CPU only, no GPU) and never sends messages to a third-party AI API. Source code: [git.opengrind.org/open-grind/greedy](https://git.opengrind.org/open-grind/greedy)."
 	},
 	{
 		"id": "follow-issue",
