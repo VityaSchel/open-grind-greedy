@@ -62,7 +62,7 @@
 			"any news on the f-droid release",
 			"can i install open grind from f-droid"
 		],
-		"answer": "Not yet. Open Grind was submitted to F-Droid ([!47217](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/47217)), but it's not published yet. Once it's live, F-Droid will build it from source and update it automatically, usually 1-3 days after each official release. The optional Google sign-in, reCAPTCHA and push add-ons won't be on F-Droid because they bundle prebuilt or proprietary code. Until then, use [opengrind.org/download](https://opengrind.org/download)."
+		"answer": "As of October 2026, Open Grind was submitted to F-Droid ([!47217](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/47217)), and awaiting review. Once it's live, F-Droid will build it from source and update it automatically, usually 1-3 days after each official release. The optional Google sign-in, reCAPTCHA and push add-ons won't be on F-Droid because they bundle prebuilt or proprietary code. Until then, use [opengrind.org/download](https://opengrind.org/download)."
 	},
 	{
 		"id": "report-bug",
@@ -108,7 +108,7 @@
 			"is there an iphone version",
 			"ios version"
 		],
-		"answer": "No. As of September 2026 Open Grind does not support iOS. The iOS buidlds will get an .ipa build and probably get published to alt stores. If you have a computer, Open Grind already runs on macOS, Windows and Linux."
+		"answer": "No. As of October 2026 Open Grind does not support iOS. An iOS version would be an .ipa, probably published to alt stores. If you have a computer, Open Grind already runs on macOS, Windows and Linux."
 	},
 	{
 		"id": "windows",
@@ -162,7 +162,7 @@
 			"how to download for linux",
 			"linux version"
 		],
-		"answer": "Open Grind is available on as a .deb for Debian 13+, Ubuntu 22+ and derivatives and as an AppImage for other distributions, for x86_64 and arm64. Flatpak is deferred until the stable v0.1.0. Downloads: [opengrind.org/download](https://opengrind.org/download)"
+		"answer": "Open Grind is available for Linux x86_64 and arm64 as an AppImage and for Debian 13+, Ubuntu 22+ and derivates as a .deb. Flatpak is deferred until the stable v0.1.0 release. Arch Linux's AUR is currently closed, but the releases will be there, once it's open again. Downloads: [opengrind.org/download](https://opengrind.org/download)"
 	},
 	{
 		"id": "emulators",
@@ -745,7 +745,7 @@
 			"when will open grind be on google play",
 			"Don't you think putting the app on the Play Store gives them every reason to ramp up anti-open client aggression?"
 		],
-		"answer": "Open Grind is on its way to Google Play and F-Droid. Later, an iOS version in alt stores may be published. Open Grind stays Open. Gatekeeping or hiding the project does not protect it. Spread Open Grind as widely as possible. Anyone can mirror the open source code, so there's no switch that shuts it down. Until a store listing is announced, download only from [opengrind.org/download](https://opengrind.org/download)."
+		"answer": "As of October 2026 Open Grind is submitted to Google Play and F-Droid, and neither listing is public yet. Later, an iOS version in alt stores may be published. Open Grind stays Open. Gatekeeping or hiding the project does not protect it. Spread Open Grind as widely as possible. Anyone can mirror the open source code, so there's no switch that shuts it down. Until a store listing is announced, download only from [opengrind.org/download](https://opengrind.org/download)."
 	},
 	{
 		"id": "how-to-install",
@@ -832,7 +832,7 @@
 			"is there a stable release yet",
 			"what's the difference between beta and mvp"
 		],
-		"answer": "Open Grind is not stable yet. It's in the 0.1.0-beta.x stage; the newest release is always at [opengrind.org/download](https://opengrind.org/download). Alpha builds were early open testing, betas are milestones toward the MVP, and a release candidate (rc) comes right before a release. MVP (minimum viable product) means v0.1.0, the first stable version covering basic everyday Grindr use; client-side extras come after it. Then come 0.1.x patches, 0.2.0+ feature releases, and 1.0, meant to fully replace the official app."
+		"answer": "Open Grind is not stable yet. v0.1.0-beta.5 (October 2026) was the last beta. Next come release candidates: v0.1.0-rc.1, then v0.1.0-rc.2 with mostly bug fixes from rc.1, which is then promoted to v0.1.0 (MVP) with no changes or only the smallest safe fixes; an rc.3 may come first if rc.2 isn't ready. The newest release is always at [opengrind.org/download](https://opengrind.org/download). Alpha builds were early open testing, betas are milestones toward the MVP, and a release candidate (rc) comes right before a release. MVP (minimum viable product) means v0.1.0, the first stable version covering basic everyday Grindr use; client-side extras come after it. Then come 0.1.x patches, 0.2.0+ feature releases, and 1.0, meant to fully replace the official app."
 	},
 	{
 		"id": "bsd",
@@ -928,7 +928,7 @@
 			"so open grind would use the ios client to get around grindr's tracking checks",
 			"so in future I'd need to use an iPhone to use Open Grind?"
 		],
-		"answer": "No. The emulation profile is internal. Open Grind might in future present itself to Grindr the way the iOS app does, because Apple allows fewer invasive trackers, but it keeps running on the device you already use. You don't need an iPhone and don't have to do anything. As of September 2026 this is only a possible change, not implemented."
+		"answer": "No. The emulation profile is internal. Open Grind might in future present itself to Grindr the way the iOS app does, because Apple allows fewer invasive trackers, but it keeps running on the device you already use. You don't need an iPhone and don't have to do anything. As of October 2026 this is only a possible change, not implemented."
 	},
 	{
 		"id": "macos",
@@ -1691,7 +1691,7 @@
 			"is there an ethnicity filter",
 			"what can i filter the grid by"
 		],
-		"answer": "Open Grind supports the following grid filters: favorites, online, Right Now status, age, gender, sexual position, photos, tags, tribes, body type, height, weight, relationship status, NSFW pics, looking for, meet at, haven't chatted today and health practices. The filter keys are documented in the [Grindr API reference](https://opengrind.org/grindr-api/browse/grid#cascadequery). Ethnicity filters aren't available yet. Follow updates in [#229](https://git.opengrind.org/open-grind/open-grind/issues/229). Filters Grindr's API doesn't support would have to be built client-side, and those come after the MVP."
+		"answer": "Open Grind supports the following grid filters: favorites, online, fresh (new) profiles, Right Now status, age, gender, sexual position, photos, tags, tribes, body type, height, weight, relationship status, NSFW pics, looking for, meet at, haven't chatted today and health practices. The filter keys are documented in the [Grindr API reference](https://opengrind.org/grindr-api/browse/grid#cascadequery). Ethnicity filters aren't available yet. Follow updates in [#229](https://git.opengrind.org/open-grind/open-grind/issues/229). Filters Grindr's API doesn't support would have to be built client-side, and those come after the MVP."
 	},
 	{
 		"id": "grid-layout",
