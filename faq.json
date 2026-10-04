@@ -25,7 +25,7 @@
 			"will these be pre-built or do we need to build ourselves?",
 			"which download link should i use"
 		],
-		"answer": "Download Open Grind for Android, Windows, macOS or Linux from the official page [opengrind.org/download](https://opengrind.org/download). Every release, with its changelog, is also listed on the [releases page](https://git.opengrind.org/open-grind/open-grind/releases). It's free and needs no account. Don't install APKs reuploaded anywhere else. Report bugs here, in #general:opengrind.org, or in the [issue tracker](https://git.opengrind.org/open-grind/open-grind/issues)."
+		"answer": "Download Open Grind for Android, Windows, macOS or Linux from the official page [opengrind.org/download](https://opengrind.org/download). On Android you can also install it from [Google Play](https://play.google.com/store/apps/details?id=org.opengrind). Every release, with its changelog, is also listed on the [releases page](https://git.opengrind.org/open-grind/open-grind/releases). It's free and needs no account. Don't install APKs reuploaded anywhere else. Report bugs here, in #general:opengrind.org, or in the [issue tracker](https://git.opengrind.org/open-grind/open-grind/issues)."
 	},
 	{
 		"id": "updates",
@@ -48,7 +48,7 @@
 			"how do i update open grind on windows",
 			"how do i update open grind on mac"
 		],
-		"answer": "Open Grind has an opt-in in-app updater. Enable \"check updates automatically\" in the app settings and you'll get a one-tap \"Download update\" prompt whenever a new version is out. To update manually, install the new version from [opengrind.org/download](https://opengrind.org/download) over the old one. New releases are also posted in #announcements:opengrind.org and the [releases RSS feed](https://git.opengrind.org/open-grind/open-grind/releases.rss)."
+		"answer": "If you installed Open Grind from Google Play, Google Play updates it. Otherwise, Open Grind has an opt-in in-app updater. Enable \"check updates automatically\" in the app settings and you'll get a one-tap \"Download update\" prompt whenever a new version is out. To update manually, install the new version from [opengrind.org/download](https://opengrind.org/download) over the old one. New releases are also posted in #announcements:opengrind.org and the [releases RSS feed](https://git.opengrind.org/open-grind/open-grind/releases.rss)."
 	},
 	{
 		"id": "fdroid",
@@ -745,7 +745,7 @@
 			"when will open grind be on google play",
 			"Don't you think putting the app on the Play Store gives them every reason to ramp up anti-open client aggression?"
 		],
-		"answer": "As of October 2026 Open Grind is submitted to Google Play and F-Droid, and neither listing is public yet. Later, an iOS version in alt stores may be published. Open Grind stays Open. Gatekeeping or hiding the project does not protect it. Spread Open Grind as widely as possible. Anyone can mirror the open source code, so there's no switch that shuts it down. Until a store listing is announced, download only from [opengrind.org/download](https://opengrind.org/download)."
+		"answer": "Open Grind is available on [Google Play](https://play.google.com/store/apps/details?id=org.opengrind). The Google Play version can't install add-ons by itself and gives you 2-3 days delayed updates. Open Grind stays Open. Gatekeeping or hiding the project does not protect it. Spread Open Grind as widely as possible. Anyone can mirror the open source code, so there's no switch that shuts it down. Only install it from links at [opengrind.org/download](https://opengrind.org/download)."
 	},
 	{
 		"id": "how-to-install",
@@ -817,7 +817,7 @@
 			"how do i know the apk is legit",
 			"are apks posted outside the official releases verified"
 		],
-		"answer": "Releases are signed with minisign (releases up to beta.3 used PGP). Each release page on git.opengrind.org has a \"Verify release signature\" section with its minisign signature, and you only need to check it by hand for your first download: after that, the in-app updater verifies every update automatically. Signing keys, including the Android keystore fingerprint, are listed in [KEYS.md](https://git.opengrind.org/open-grind/open-grind/src/branch/main/KEYS.md), and builds are reproducible if you'd rather rebuild from source and compare."
+		"answer": "Releases are signed with minisign (releases up to beta.3 used PGP). Each release page on git.opengrind.org has a \"Verify release signature\" section with its minisign signature, and you only need to check it by hand for your first download: after that, the in-app updater verifies every update automatically. Signing keys, including the Android keystore fingerprint, are listed in [KEYS.md](https://git.opengrind.org/open-grind/open-grind/src/branch/main/KEYS.md), and builds are reproducible if you'd rather rebuild from source and compare. The Google Play version is signed by Google, so check it with code transparency instead: [Verify Google Play install](https://git.opengrind.org/open-grind/open-grind/src/branch/main/BUILDING.md#verify-google-play-install)."
 	},
 	{
 		"id": "version-stages",
@@ -4019,7 +4019,7 @@
 			"can i share the apk file with my friends",
 			"is there a faster download mirror"
 		],
-		"answer": "No. Official releases are only published at [opengrind.org/download](https://opengrind.org/download) and on git.opengrind.org, and you don't need an account to download. Don't download Open Grind builds from Telegram, GitHub or any other unofficial sources. If downloads ever become impossible, official mirrors with verification instructions will be announced."
+		"answer": "No. Official releases are only published at [opengrind.org/download](https://opengrind.org/download), on git.opengrind.org and on [Google Play](https://play.google.com/store/apps/details?id=org.opengrind), and you don't need an account to download. Don't download Open Grind builds from Telegram, GitHub or any other unofficial sources. If downloads ever become impossible, official mirrors with verification instructions will be announced."
 	},
 	{
 		"id": "faq-bot",
