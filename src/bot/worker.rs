@@ -1,6 +1,7 @@
 use super::answering::{
-	Decision, Message, Pending, PendingMessages, RAISED_HAND, Reaction, answer_markdown, decide,
-	is_question, is_stale, keycap, merge, picked, question_list, question_threshold, questions,
+	Decision, Message, Pending, PendingMessages, RAISED_HAND, Reaction, Thresholds,
+	answer_markdown, decide, is_question, is_stale, keycap, merge, picked, question_list,
+	questions,
 };
 use super::calibration::Calibration;
 use super::config::Config;
@@ -103,13 +104,16 @@ impl Worker {
 				let choice = summon_question(body, html, bot);
 				return self.pick(&message, &choice, &original, &entry_ids).await;
 			}
-			Some(Pending::Prompt) => return self.summon_or_prompt(&message, body, html).await,
+			Some(Pending::Prompt) => {
+				return self.summon_or_prompt(&message, summon_question(body, html, bot)).await;
+			}
 			Some(Pending::Offer { .. }) | None => {}
 		}
 		if mentions_user(content.mentioned_user_ids(), html, body, bot) {
+			let question = summon_question(body, html, bot);
 			return match target {
-				Some(target) => self.summon_on_reply(&message, target).await,
-				None => self.summon_or_prompt(&message, body, html).await,
+				Some(target) => self.summon_on_reply(&message, target, question).await,
+				None => self.summon_or_prompt(&message, question).await,
 			};
 		}
 		if target.is_some() {
@@ -134,7 +138,8 @@ impl Worker {
 				self.answer("pick", &original, &entry_id, None).await
 			}
 			Some(Reaction::Summon { message, question }) => {
-				self.summon("reaction", &message, &message, question).await
+				let thresholds = self.calibration.raised_hand();
+				self.summon("reaction", thresholds, &message, &message, question).await
 			}
 			None => Ok(()),
 		}
@@ -155,15 +160,10 @@ impl Worker {
 		self.answer("pick", original, entry_id, None).await
 	}
 
-	async fn summon_or_prompt(
-		&mut self,
-		message: &Message,
-		body: &str,
-		html: Option<&str>,
-	) -> Result<()> {
-		let question = summon_question(body, html, &self.config.app_service_user);
-		if question.chars().any(char::is_alphanumeric) {
-			return self.summon("summon", message, message, question).await;
+	async fn summon_or_prompt(&mut self, message: &Message, question: String) -> Result<()> {
+		if !is_bare_ping(&question) {
+			let thresholds = self.calibration.mention();
+			return self.summon("summon", thresholds, message, message, question).await;
 		}
 		let prompt = self.reply(message, HOW_MAY_I_HELP).await?;
 		info!(mode = "summon", room = %message.room_id, asker = %message.sender, "asked how to help");
@@ -171,7 +171,12 @@ impl Worker {
 		Ok(())
 	}
 
-	async fn summon_on_reply(&mut self, summoner: &Message, target: &str) -> Result<()> {
+	async fn summon_on_reply(
+		&mut self,
+		summoner: &Message,
+		target: &str,
+		question: String,
+	) -> Result<()> {
 		let replied_to: Option<Event> = self
 			.matrix
 			.event(&summoner.room_id, target)
@@ -186,10 +191,15 @@ impl Worker {
 			debug!(room = %summoner.room_id, "ping in a reply to the bot, ignoring");
 			return Ok(());
 		}
-		let Some(question) = replied_to.latest_text() else {
-			self.reply(summoner, UNREADABLE_REPLY).await?;
-			info!(mode = "summon", room = %summoner.room_id, event = target, "replied-to message is not text");
-			return Ok(());
+		let question = if is_bare_ping(&question) {
+			let Some(replied_to_text) = replied_to.latest_text() else {
+				self.reply(summoner, UNREADABLE_REPLY).await?;
+				info!(mode = "summon", room = %summoner.room_id, event = target, "replied-to message is not text");
+				return Ok(());
+			};
+			replied_to_text.to_owned()
+		} else {
+			question
 		};
 		let answer_to = Message {
 			room_id: summoner.room_id.clone(),
@@ -201,23 +211,24 @@ impl Worker {
 				.map(str::to_owned)
 				.or_else(|| summoner.thread_root.clone()),
 		};
-		self.summon("summon", summoner, &answer_to, question.to_owned()).await
+		let thresholds = self.calibration.mention();
+		self.summon("summon", thresholds, summoner, &answer_to, question).await
 	}
 
 	async fn summon(
 		&mut self,
 		mode: &str,
+		thresholds: Thresholds,
 		summoner: &Message,
 		answer_to: &Message,
 		text: String,
 	) -> Result<()> {
-		let low_threshold = self.calibration.low_threshold;
 		let questions = questions(&text);
 		let mut ranked = self.rank_questions(&questions).await?;
-		let mut decision = self.decide_questions(&ranked, low_threshold);
+		let mut decision = self.decide_questions(&ranked, thresholds);
 		if decision == Decision::NoMatch && questions.len() > 1 {
 			ranked = self.rank_questions(&[text.as_str()]).await?;
-			decision = self.decide_questions(&ranked, low_threshold);
+			decision = self.decide_questions(&ranked, thresholds);
 		}
 		let score = top_score(&ranked);
 		match decision {
@@ -242,12 +253,12 @@ impl Worker {
 		}
 		let ranked = self.rank_questions(&questions(body)).await?;
 		let score = top_score(&ranked);
-		match self.decide_questions(&ranked, self.calibration.high_threshold) {
+		match self.decide_questions(&ranked, self.calibration.unprompted()) {
 			Decision::Answer(id) => self.answer("auto", message, &id, Some(score)).await,
 			Decision::Choose(ids) => self.offer("auto", message, ids, score).await,
 			Decision::NoMatch => {
 				let decision_if_summoned =
-					self.decide_questions(&ranked, self.calibration.low_threshold);
+					self.decide_questions(&ranked, self.calibration.raised_hand());
 				let Some(entry) = decision_if_summoned.best() else {
 					debug!(room = %message.room_id, score, "no match");
 					return Ok(());
@@ -341,10 +352,10 @@ impl Worker {
 		Ok(ranked)
 	}
 
-	fn decide_questions(&self, ranked: &[(&str, Vec<Match>)], threshold: f32) -> Decision {
-		let Calibration { short_question_threshold, ambiguity_margin, .. } = self.calibration;
+	fn decide_questions(&self, ranked: &[(&str, Vec<Match>)], thresholds: Thresholds) -> Decision {
+		let ambiguity_margin = self.calibration.ambiguity_margin;
 		let decisions = ranked.iter().map(|(question, ranking)| {
-			let threshold = question_threshold(question, threshold, short_question_threshold);
+			let threshold = thresholds.for_question(question);
 			decide(ranking, threshold, ambiguity_margin, |id| self.matcher.entry(id))
 		});
 		merge(decisions.collect())
@@ -353,6 +364,10 @@ impl Worker {
 	fn entry(&self, id: &str) -> Result<&FaqEntry> {
 		self.matcher.entry(id).with_context(|| format!("FAQ entry '{id}' vanished"))
 	}
+}
+
+fn is_bare_ping(question: &str) -> bool {
+	!question.chars().any(char::is_alphanumeric)
 }
 
 fn top_score(ranked: &[(&str, Vec<Match>)]) -> f32 {

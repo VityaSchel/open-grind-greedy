@@ -111,8 +111,20 @@ fn split_after_question_marks_ending_a_sentence(text: &str) -> Vec<&str> {
 	parts
 }
 
-pub fn question_threshold(question: &str, threshold: f32, short_question_threshold: f32) -> f32 {
-	if is_short_question(question) { threshold.max(short_question_threshold) } else { threshold }
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Thresholds {
+	pub question: f32,
+	pub short_question: f32,
+}
+
+impl Thresholds {
+	pub fn for_question(self, question: &str) -> f32 {
+		if is_short_question(question) {
+			self.question.max(self.short_question)
+		} else {
+			self.question
+		}
+	}
 }
 
 pub fn answer_markdown(entry: &FaqEntry) -> String {
@@ -466,12 +478,13 @@ mod tests {
 
 	#[test]
 	fn short_questions_need_the_stricter_threshold() {
+		let thresholds = |question| Thresholds { question, short_question: 0.97 };
 		for short in ["install it?", "Who is Greedy?"] {
-			assert_eq!(question_threshold(short, 0.88, 0.97), 0.97, "{short}");
-			assert_eq!(question_threshold(short, 0.99, 0.97), 0.99, "{short}");
+			assert_eq!(thresholds(0.88).for_question(short), 0.97, "{short}");
+			assert_eq!(thresholds(0.99).for_question(short), 0.99, "{short}");
 		}
 		for other in ["Is Open Grind free?", "install?", "ios app", "donate"] {
-			assert_eq!(question_threshold(other, 0.88, 0.97), 0.88, "{other}");
+			assert_eq!(thresholds(0.88).for_question(other), 0.88, "{other}");
 		}
 	}
 
