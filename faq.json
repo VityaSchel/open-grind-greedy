@@ -743,7 +743,8 @@
 			"is open grind on the play store",
 			"can i download open grind from google play",
 			"when will open grind be on google play",
-			"Don't you think putting the app on the Play Store gives them every reason to ramp up anti-open client aggression?"
+			"Don't you think putting the app on the Play Store gives them every reason to ramp up anti-open client aggression?",
+			"is the app available in Google Play?"
 		],
 		"answer": "Open Grind is available on [Google Play](https://play.google.com/store/apps/details?id=org.opengrind). The Google Play version can't install add-ons by itself and gives you 2-3 days delayed updates. Open Grind stays Open. Gatekeeping or hiding the project does not protect it. Spread Open Grind as widely as possible. Anyone can mirror the open source code, so there's no switch that shuts it down. Only install it from links at [opengrind.org/download](https://opengrind.org/download)."
 	},
@@ -1079,7 +1080,8 @@
 			"I've a idea if you add a account switcher - you know when someone is using 2 accounts for 2 different things and have separate login's. Can this be possible?",
 			"can i be logged into two accounts at the same time",
 			"how do i switch between my accounts without logging out",
-			"multi account support"
+			"multi account support",
+			"Is there any possibility to have 2 account signed in? Something similar to dual-space"
 		],
 		"answer": "Not yet. A quick account switcher is planned for a later release and was being worked on as of August 2026: it will let you stay signed in to several accounts at once and switch between them with one tap, like in Telegram."
 	},
