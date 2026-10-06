@@ -88,3 +88,7 @@ cargo test               # unit tests and bot tests against a mock homeserver
 cargo test -- --ignored  # model-backed tests; download the model on first run
 cargo clippy --all-targets -- -D warnings
 ```
+
+## License
+
+Greedy mascot (`contrib/greedy.svg`): [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain)
