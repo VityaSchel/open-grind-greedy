@@ -62,7 +62,7 @@
 			"any news on the f-droid release",
 			"can i install open grind from f-droid"
 		],
-		"answer": "As of October 2026, Open Grind was submitted to F-Droid ([!47217](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/47217)), and awaiting review. Once it's live, F-Droid will build it from source and update it automatically, usually 1-3 days after each official release. The optional Google sign-in, reCAPTCHA and push add-ons won't be on F-Droid because they bundle prebuilt or proprietary code. Until then, use [opengrind.org/download](https://opengrind.org/download)."
+		"answer": "As of October 31, 2026, Open Grind's F-Droid submission ([!47217](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/47217)) is awaiting review, updated for v0.1.0-rc.1 with one build per CPU type. Once it's live, F-Droid will build it from source and update it automatically, usually 1-3 days after each official release. The optional Google sign-in, reCAPTCHA and push add-ons won't be on F-Droid because they bundle prebuilt or proprietary code. Until then, use [opengrind.org/download](https://opengrind.org/download)."
 	},
 	{
 		"id": "report-bug",
@@ -833,7 +833,7 @@
 			"is there a stable release yet",
 			"what's the difference between beta and mvp"
 		],
-		"answer": "Open Grind is not stable yet. v0.1.0-beta.5 (October 2026) was the last beta. Next come release candidates: v0.1.0-rc.1, then v0.1.0-rc.2 with mostly bug fixes from rc.1, which is then promoted to v0.1.0 (MVP) with no changes or only the smallest safe fixes; an rc.3 may come first if rc.2 isn't ready. The newest release is always at [opengrind.org/download](https://opengrind.org/download). Alpha builds were early open testing, betas are milestones toward the MVP, and a release candidate (rc) comes right before a release. MVP (minimum viable product) means v0.1.0, the first stable version covering basic everyday Grindr use; client-side extras come after it. Then come 0.1.x patches, 0.2.0+ feature releases, and 1.0, meant to fully replace the official app."
+		"answer": "Open Grind is not stable yet. v0.1.0-rc.1 (October 31, 2026) is the first release candidate. Next comes v0.1.0-rc.2 with mostly bug fixes from rc.1, which is then promoted to v0.1.0 (MVP) with no changes or only the smallest safe fixes; an rc.3 may come first if rc.2 isn't ready. The newest release is always at [opengrind.org/download](https://opengrind.org/download). Alpha builds were early open testing, betas are milestones toward the MVP, and a release candidate (rc) comes right before a release. MVP (minimum viable product) means v0.1.0, the first stable version covering basic everyday Grindr use; client-side extras come after it. Then come 0.1.x patches, 0.2.0+ feature releases, and 1.0, meant to fully replace the official app."
 	},
 	{
 		"id": "bsd",
@@ -946,7 +946,7 @@
 			"how to download for mac",
 			"mac version"
 		],
-		"answer": "Yes. Open Grind is available on macOS as a zip with a universal .app you launch from /Applications. Downloads: [opengrind.org/download](https://opengrind.org/download). There is no dmg or Homebrew package. The build isn't signed yet, so macOS may say the app is damaged: run `xattr -d com.apple.quarantine /path/to/open-grind.app`, then open it, or locate the \"Open anyway\" button in System Settings."
+		"answer": "Yes. Open Grind is available on macOS as a zip with a universal .app you launch from /Applications. Downloads: [opengrind.org/download](https://opengrind.org/download). Since v0.1.0-rc.1, releases are notarized by Apple, so macOS opens them without warnings. When updating from v0.1.0-beta.5.1 or earlier, macOS asks up to three times for your Mac password: click \"Allow\" each time to stay signed in. There is no dmg, and a Homebrew cask is awaiting review ([Homebrew/homebrew-cask#298852](https://github.com/Homebrew/homebrew-cask/pull/298852))."
 	},
 	{
 		"id": "macos-unsigned",
@@ -965,7 +965,7 @@
 			"macos keeps asking for my keychain password after an update",
 			"open grind logged me out after the update on macos"
 		],
-		"answer": "The macOS build is unsigned because Apple Developer Program enrollment is still in progress, so Gatekeeper calls it corrupted and offers to move it to the Trash. In Terminal, run `xattr -d com.apple.quarantine /path/to/open-grind.app`, then open it, or locate the \"Open anyway\" button in System Settings."
+		"answer": "Since v0.1.0-rc.1, Open Grind for macOS is notarized by Apple and opens normally, so this message means you have an older, unsigned version. Download the latest one from [opengrind.org/download](https://opengrind.org/download). For older versions, run `xattr -d com.apple.quarantine /path/to/open-grind.app` in Terminal, then open it, or locate the \"Open anyway\" button in System Settings."
 	},
 	{
 		"id": "min-android-version",
@@ -1693,7 +1693,7 @@
 			"is there an ethnicity filter",
 			"what can i filter the grid by"
 		],
-		"answer": "Open Grind supports the following grid filters: favorites, online, fresh (new) profiles, Right Now status, age, gender, sexual position, photos, tags, tribes, body type, height, weight, relationship status, NSFW pics, looking for, meet at, haven't chatted today and health practices. The filter keys are documented in the [Grindr API reference](https://opengrind.org/grindr-api/browse/grid#cascadequery). Ethnicity filters aren't available yet. Follow updates in [#229](https://git.opengrind.org/open-grind/open-grind/issues/229). Filters Grindr's API doesn't support would have to be built client-side, and those come after the MVP."
+		"answer": "Open Grind supports the following grid filters: favorites, online, fresh (new) profiles, Right Now status, age, gender, sexual position, photos, tags, their tribes, tribes they're into, body type, height, weight, relationship status, NSFW pics, looking for, meet at, haven't chatted today and health practices. The filter keys are documented in the [Grindr API reference](https://opengrind.org/grindr-api/browse/grid#cascadequery). Ethnicity filters aren't available yet. Follow updates in [#229](https://git.opengrind.org/open-grind/open-grind/issues/229). Filters Grindr's API doesn't support would have to be built client-side, and those come after the MVP."
 	},
 	{
 		"id": "grid-layout",
@@ -1860,7 +1860,7 @@
 			"someone sent me a location and i can't see it",
 			"location messages not showing"
 		],
-		"answer": "Not yet. Follow updates in [#35](https://git.opengrind.org/open-grind/open-grind/issues/35)."
+		"answer": "Yes, since v0.1.0-rc.1. In a chat, tap 📎, then Location, to send one. Locations others send you show in the chat."
 	},
 	{
 		"id": "location-jiggling",
@@ -2119,7 +2119,7 @@
 			"does open grind need google services for notifications",
 			"Hi Victor, just wondering why we can't have \"push notifications\" before MVP? I saw a fork of OpenGrind already implemented it."
 		],
-		"answer": "Open Grind supports push notifications for Android. To enable, go to App settings > Notifications, choose \"Fast mode\" for instant notifications through the optional [FCM service add-on](https://git.opengrind.org/open-grind/fcm-service/releases) (uses Google's Firebase) or \"Slow mode\", a Google-free mode that checks for new messages on a schedule."
+		"answer": "Open Grind supports push notifications for Android. Since v0.1.0-rc.1 it also shows notifications on Windows, macOS and Linux while it's running. To enable, go to App settings > Notifications, choose \"Fast mode\" for instant notifications through the optional [FCM service add-on](https://git.opengrind.org/open-grind/fcm-service/releases) (uses Google's Firebase) or \"Slow mode\", a Google-free mode that checks for new messages on a schedule."
 	},
 	{
 		"id": "ratings-reviews",
@@ -5876,5 +5876,33 @@
 			"if a 20 year old with no maturity has sex with a 40 year old, the current system gives them zero protection"
 		],
 		"answer": "Read [why this chat is 18+](https://matrix.to/#/!b2GcLXF4xhTrmSPXcdGk-9UN40uEPnAz7NuH031cxLk/$igR_f4gweZTkVEm_d1I0BGKx78kMO8M9FKd0xT3iT_0)"
+	},
+	{
+		"id": "play-protect-harmful",
+		"question": "Google Play Protect says \"Harmful app blocked\" when I install or update Open Grind. Is it safe?",
+		"paraphrases": [
+			"play protect blocked the update",
+			"harmful app blocked open grind",
+			"this app may be harmful",
+			"play protect says open grind is harmful",
+			"google says the app is dangerous",
+			"update blocked by play protect",
+			"is open grind a virus",
+			"play protect warning when updating"
+		],
+		"answer": "Yes. Google Play Protect may show \"Harmful app blocked\" when you install or update Open Grind. It's a false alarm: every release is signed with the same key and can be rebuilt byte for byte from the public source. Tap \"Install anyway\" (above the OK button) to finish installing. To check a file yourself, verify its signature as described under \"Verify release signature\" on the [releases page](https://git.opengrind.org/open-grind/open-grind/releases)."
+	},
+	{
+		"id": "which-apk",
+		"question": "Which Android APK should I download?",
+		"paraphrases": [
+			"which apk do i need",
+			"arm64-v8a or armeabi-v7a",
+			"what is the difference between the apks",
+			"there are several apk files, which one",
+			"universal apk or arm64",
+			"which version for my phone"
+		],
+		"answer": "The universal APK works on every phone. Since v0.1.0-rc.1 there are also smaller APKs for one CPU type each: arm64-v8a fits almost every phone from recent years, armeabi-v7a is for old 32-bit phones, and x86_64 and x86 are for emulators and Chromebooks. If unsure, take the universal one. From the update after rc.1 on, the in-app updater downloads the smaller APK for your phone automatically. Downloads: [opengrind.org/download](https://opengrind.org/download)."
 	}
 ]
