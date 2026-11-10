@@ -62,7 +62,7 @@
 			"any news on the f-droid release",
 			"can i install open grind from f-droid"
 		],
-		"answer": "As of October 31, 2026, Open Grind's F-Droid submission ([!47217](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/47217)) is awaiting review, updated for v0.1.0-rc.1 with one build per CPU type. Once it's live, F-Droid will build it from source and update it automatically, usually 1-3 days after each official release. The optional Google sign-in, reCAPTCHA and push add-ons won't be on F-Droid because they bundle prebuilt or proprietary code. Until then, use [opengrind.org/download](https://opengrind.org/download)."
+		"answer": "As of November 10, 2026, Open Grind's F-Droid submission ([!47217](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/47217)) is awaiting review, updated for v0.1.0-rc.1.1 with one build per CPU type. Once it's live, F-Droid will build it from source and update it automatically, usually 1-3 days after each official release. The optional Google sign-in, reCAPTCHA and push add-ons won't be on F-Droid because they bundle prebuilt or proprietary code. Until then, use [opengrind.org/download](https://opengrind.org/download)."
 	},
 	{
 		"id": "report-bug",
@@ -833,7 +833,7 @@
 			"is there a stable release yet",
 			"what's the difference between beta and mvp"
 		],
-		"answer": "Open Grind is not stable yet. v0.1.0-rc.1 (October 31, 2026) is the first release candidate. Next comes v0.1.0-rc.2 with mostly bug fixes from rc.1, which is then promoted to v0.1.0 (MVP) with no changes or only the smallest safe fixes; an rc.3 may come first if rc.2 isn't ready. The newest release is always at [opengrind.org/download](https://opengrind.org/download). Alpha builds were early open testing, betas are milestones toward the MVP, and a release candidate (rc) comes right before a release. MVP (minimum viable product) means v0.1.0, the first stable version covering basic everyday Grindr use; client-side extras come after it. Then come 0.1.x patches, 0.2.0+ feature releases, and 1.0, meant to fully replace the official app."
+		"answer": "Open Grind is not stable yet. v0.1.0-rc.1 (October 31, 2026) is the first release candidate, and v0.1.0-rc.1.1 (November 10, 2026) is a hotfix on top of it. Next comes v0.1.0-rc.2 with mostly bug fixes from rc.1, which is then promoted to v0.1.0 (MVP) with no changes or only the smallest safe fixes; an rc.3 may come first if rc.2 isn't ready. The newest release is always at [opengrind.org/download](https://opengrind.org/download). Alpha builds were early open testing, betas are milestones toward the MVP, and a release candidate (rc) comes right before a release. MVP (minimum viable product) means v0.1.0, the first stable version covering basic everyday Grindr use; client-side extras come after it. Then come 0.1.x patches, 0.2.0+ feature releases, and 1.0, meant to fully replace the official app."
 	},
 	{
 		"id": "bsd",
@@ -946,7 +946,7 @@
 			"how to download for mac",
 			"mac version"
 		],
-		"answer": "Yes. Open Grind is available on macOS as a zip with a universal .app you launch from /Applications. Downloads: [opengrind.org/download](https://opengrind.org/download). Since v0.1.0-rc.1, releases are notarized by Apple, so macOS opens them without warnings. When updating from v0.1.0-beta.5.1 or earlier, macOS asks up to three times for your Mac password: click \"Allow\" each time to stay signed in. There is no dmg, and a Homebrew cask is awaiting review ([Homebrew/homebrew-cask#298852](https://github.com/Homebrew/homebrew-cask/pull/298852))."
+		"answer": "Yes. Open Grind is available on macOS as a zip with a universal .app you launch from /Applications. Downloads: [opengrind.org/download](https://opengrind.org/download). Since v0.1.0-rc.1, releases are notarized by Apple, so macOS opens them without warnings. When updating from v0.1.0-beta.5.1 or earlier, macOS asks up to three times for your Mac password: click \"Allow\" each time to stay signed in. There is no dmg. Homebrew can install it from the project's own tap: `brew tap open-grind/tap https://git.opengrind.org/open-grind/homebrew-tap`, `brew trust open-grind/tap`, then `brew install --cask open-grind`."
 	},
 	{
 		"id": "macos-unsigned",
@@ -2773,7 +2773,7 @@
 			"open grind stopped working today",
 			"client version deprecated error"
 		],
-		"answer": "When Grindr deprecates old app versions or changes its API, older Open Grind versions can stop working until a fix release comes out. Each release updates the Grindr version Open Grind reports, so ensure you have updated Open Grind to the latest version. Enable \"check updates automatically\" in the app settings to get a prompt when an update is out. If the latest version still fails, copy the redacted error details and post them here, in #general:opengrind.org."
+		"answer": "When Grindr deprecates old app versions or changes its API, older Open Grind versions can stop working until a fix release comes out. Each release updates the Grindr version Open Grind reports, so ensure you have updated Open Grind to the latest version. In November 2026 Grindr deprecated the version v0.1.0-rc.1 reported; v0.1.0-rc.1.1 fixes it. Enable \"check updates automatically\" in the app settings to get a prompt when an update is out. If the latest version still fails, copy the redacted error details and post them here, in #general:opengrind.org."
 	},
 	{
 		"id": "keyboard-covers-chat",
